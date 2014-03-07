@@ -88,7 +88,7 @@ final class ConpherenceNotificationPanelController
         array(
           'href' => '/conpherence/',
         ),
-        'View All Conpherences'));
+        pht('View All Conpherences')));
 
     $unread = id(new ConpherenceParticipantCountQuery())
       ->withParticipantPHIDs(array($user->getPHID()))

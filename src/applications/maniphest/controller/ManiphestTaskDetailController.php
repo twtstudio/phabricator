@@ -191,10 +191,10 @@ final class ManiphestTaskDetailController extends ManiphestController {
         ));
     } else {
       $resolution_types = array(
-        ManiphestTaskStatus::STATUS_OPEN => 'Reopened',
+        ManiphestTaskStatus::STATUS_OPEN => pht('Reopened'),
       );
       $transaction_types[ManiphestTransaction::TYPE_STATUS] =
-        'Reopen Task';
+        pht('Reopen Task');
       unset($transaction_types[ManiphestTransaction::TYPE_PRIORITY]);
       unset($transaction_types[ManiphestTransaction::TYPE_OWNER]);
     }
