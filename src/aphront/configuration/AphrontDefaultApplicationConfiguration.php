@@ -19,39 +19,10 @@ class AphrontDefaultApplicationConfiguration
 
   public function getURIMap() {
     return $this->getResourceURIMapRules() + array(
-      '/oauthserver/' => array(
-        'auth/'          => 'PhabricatorOAuthServerAuthController',
-        'test/'          => 'PhabricatorOAuthServerTestController',
-        'token/'         => 'PhabricatorOAuthServerTokenController',
-        'clientauthorization/' => array(
-          '' => 'PhabricatorOAuthClientAuthorizationListController',
-          'delete/(?P<phid>[^/]+)/' =>
-            'PhabricatorOAuthClientAuthorizationDeleteController',
-          'edit/(?P<phid>[^/]+)/' =>
-            'PhabricatorOAuthClientAuthorizationEditController',
-        ),
-        'client/' => array(
-          ''                        => 'PhabricatorOAuthClientListController',
-          'create/'                 => 'PhabricatorOAuthClientEditController',
-          'delete/(?P<phid>[^/]+)/' => 'PhabricatorOAuthClientDeleteController',
-          'edit/(?P<phid>[^/]+)/'   => 'PhabricatorOAuthClientEditController',
-          'view/(?P<phid>[^/]+)/'   => 'PhabricatorOAuthClientViewController',
-        ),
-      ),
-
       '/~/' => array(
         '' => 'DarkConsoleController',
         'data/(?P<key>[^/]+)/' => 'DarkConsoleDataController',
       ),
-
-      '/status/' => 'PhabricatorStatusController',
-
-
-      '/help/' => array(
-        'keyboardshortcut/' => 'PhabricatorHelpKeyboardShortcutController',
-      ),
-
-      '/debug/' => 'PhabricatorDebugController',
     );
   }
 

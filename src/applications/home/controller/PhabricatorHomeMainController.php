@@ -33,9 +33,21 @@ final class PhabricatorHomeMainController
 
   private function buildMainResponse($nav, array $projects) {
     assert_instances_of($projects, 'PhabricatorProject');
+    $viewer = $this->getRequest()->getUser();
 
-    $maniphest = 'PhabricatorApplicationManiphest';
-    if (PhabricatorApplication::isClassInstalled($maniphest)) {
+    $has_maniphest = PhabricatorApplication::isClassInstalledForViewer(
+      'PhabricatorApplicationManiphest',
+      $viewer);
+
+    $has_audit = PhabricatorApplication::isClassInstalledForViewer(
+      'PhabricatorApplicationAudit',
+      $viewer);
+
+    $has_differential = PhabricatorApplication::isClassInstalledForViewer(
+      'PhabricatorApplicationDifferential',
+      $viewer);
+
+    if ($has_maniphest) {
       $unbreak_panel = $this->buildUnbreakNowPanel();
       $triage_panel = $this->buildNeedsTriagePanel($projects);
       $tasks_panel = $this->buildTasksPanel();
@@ -45,8 +57,7 @@ final class PhabricatorHomeMainController
       $tasks_panel = null;
     }
 
-    $audit = 'PhabricatorApplicationAudit';
-    if (PhabricatorApplication::isClassInstalled($audit)) {
+    if ($has_audit) {
       $audit_panel = $this->buildAuditPanel();
       $commit_panel = $this->buildCommitPanel();
     } else {
@@ -61,7 +72,12 @@ final class PhabricatorHomeMainController
     }
 
     $jump_panel = $this->buildJumpPanel();
-    $revision_panel = $this->buildRevisionPanel();
+
+    if ($has_differential) {
+      $revision_panel = $this->buildRevisionPanel();
+    } else {
+      $revision_panel = null;
+    }
 
     $content = array(
       $jump_panel,
@@ -219,7 +235,6 @@ final class PhabricatorHomeMainController
     $revision_view = id(new DifferentialRevisionListView())
       ->setHighlightAge(true)
       ->setRevisions(array_merge($blocking, $active))
-      ->setFields(DifferentialRevisionListView::getDefaultFields($user))
       ->setUser($user);
     $phids = array_merge(
       array($user_phid),
@@ -309,7 +324,7 @@ final class PhabricatorHomeMainController
 
     require_celerity_resource('phabricator-jump-nav');
 
-    $doc_href = PhabricatorEnv::getDocLink('article/Jump_Nav_User_Guide.html');
+    $doc_href = PhabricatorEnv::getDocLink('Jump Nav User Guide');
     $doc_link = phutil_tag(
       'a',
       array(

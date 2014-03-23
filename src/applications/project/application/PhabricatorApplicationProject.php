@@ -44,6 +44,8 @@ final class PhabricatorApplicationProject extends PhabricatorApplication {
           'PhabricatorProjectArchiveController',
         'members/(?P<id>[1-9]\d*)/'
           => 'PhabricatorProjectMembersEditController',
+        'members/(?P<id>[1-9]\d*)/remove/'
+          => 'PhabricatorProjectMembersRemoveController',
         'view/(?P<id>[1-9]\d*)/'
           => 'PhabricatorProjectProfileController',
         'picture/(?P<id>[1-9]\d*)/' =>
@@ -53,6 +55,8 @@ final class PhabricatorApplicationProject extends PhabricatorApplication {
         'move/(?P<id>[1-9]\d*)/' => 'PhabricatorProjectMoveController',
         'board/(?P<projectID>[1-9]\d*)/edit/(?:(?P<id>\d+)/)?'
           => 'PhabricatorProjectBoardEditController',
+        'board/(?P<projectID>[1-9]\d*)/delete/(?:(?P<id>\d+)/)?'
+          => 'PhabricatorProjectBoardDeleteController',
         'update/(?P<id>[1-9]\d*)/(?P<action>[^/]+)/'
           => 'PhabricatorProjectUpdateController',
         'history/(?P<id>[1-9]\d*)/' => 'PhabricatorProjectHistoryController',

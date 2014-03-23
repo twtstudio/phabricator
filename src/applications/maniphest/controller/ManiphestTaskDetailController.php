@@ -224,6 +224,7 @@ final class ManiphestTaskDetailController extends ManiphestController {
     $comment_form = new AphrontFormView();
     $comment_form
       ->setUser($user)
+      ->setWorkflow(true)
       ->setAction('/maniphest/transaction/save/')
       ->setEncType('multipart/form-data')
       ->addHiddenInput('taskID', $task->getID())
@@ -516,11 +517,13 @@ final class ManiphestTaskDetailController extends ManiphestController {
       pht('Priority'),
       ManiphestTaskPriority::getTaskPriorityName($task->getPriority()));
 
-    $view->addProperty(
-      pht('Subscribers'),
-      $task->getCCPHIDs()
-      ? $this->renderHandlesForPHIDs($task->getCCPHIDs(), ',')
-      : phutil_tag('em', array(), pht('None')));
+    $handles = $this->getLoadedHandles();
+    $cc_handles = array_select_keys($handles, $task->getCCPHIDs());
+    $subscriber_html = id(new SubscriptionListStringBuilder())
+      ->setObjectPHID($task->getPHID())
+      ->setHandles($cc_handles)
+      ->buildPropertyString();
+    $view->addProperty(pht('Subscribers'), $subscriber_html);
 
     $view->addProperty(
       pht('Author'),

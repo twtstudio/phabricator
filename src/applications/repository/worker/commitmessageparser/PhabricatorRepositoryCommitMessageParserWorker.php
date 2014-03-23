@@ -78,16 +78,14 @@ abstract class PhabricatorRepositoryCommitMessageParserWorker
     $should_autoclose = $repository->shouldAutocloseCommit($commit, $data);
 
     if ($revision_id) {
-      $lock = PhabricatorGlobalLock::newLock(get_class($this).':'.$revision_id);
-      $lock->lock(5 * 60);
-
       // TODO: Check if a more restrictive viewer could be set here
-      $revision = id(new DifferentialRevisionQuery())
+      $revision_query = id(new DifferentialRevisionQuery())
         ->withIDs(array($revision_id))
         ->setViewer(PhabricatorUser::getOmnipotentUser())
-        ->needRelationships(true)
         ->needReviewerStatus(true)
-        ->executeOne();
+        ->needActiveDiffs(true);
+
+      $revision = $revision_query->executeOne();
 
       if ($revision) {
         $commit_drev = PhabricatorEdgeConfig::TYPE_COMMIT_HAS_DREV;
@@ -112,28 +110,9 @@ abstract class PhabricatorRepositoryCommitMessageParserWorker
             $committer_phid,
             $author_phid,
             $revision->getAuthorPHID());
+
           $actor = id(new PhabricatorUser())
             ->loadOneWhere('phid = %s', $actor_phid);
-
-          $diff = $this->attachToRevision($revision, $actor_phid);
-
-          $editor = new DifferentialCommentEditor(
-            $revision,
-            DifferentialAction::ACTION_CLOSE);
-          $editor->setActor($actor);
-          $editor->setIsDaemonWorkflow(true);
-
-          $vs_diff = $this->loadChangedByCommit($diff);
-          if ($vs_diff) {
-            $data->setCommitDetail('vsDiff', $vs_diff->getID());
-
-            $changed_by_commit = PhabricatorEnv::getProductionURI(
-              '/D'.$revision->getID().
-              '?vs='.$vs_diff->getID().
-              '&id='.$diff->getID().
-              '#toc');
-            $editor->setChangedByCommit($changed_by_commit);
-          }
 
           $commit_name = $repository->formatCommitName(
             $commit->getCommitIdentifier());
@@ -148,37 +127,78 @@ abstract class PhabricatorRepositoryCommitMessageParserWorker
             $data->getAuthorName(),
             $actor);
 
-          $info = array();
-          $info[] = "authored by {$author_name}";
           if ($committer_name && ($committer_name != $author_name)) {
-            $info[] = "committed by {$committer_name}";
+            $revision_update_comment = pht(
+              'Closed by commit %s (authored by %s, committed by %s).',
+              $commit_name,
+              $author_name,
+              $committer_name);
+          } else {
+            $revision_update_comment = pht(
+              'Closed by commit %s (authored by %s).',
+              $commit_name,
+              $author_name);
           }
-          $info = implode(', ', $info);
 
-          $editor
-            ->setMessage("Closed by commit {$commit_name} ({$info}).")
-            ->save();
+          $diff = $this->generateFinalDiff($revision, $actor_phid);
+
+          $vs_diff = $this->loadChangedByCommit($revision, $diff);
+          $changed_uri = null;
+          if ($vs_diff) {
+            $data->setCommitDetail('vsDiff', $vs_diff->getID());
+
+            $changed_uri = PhabricatorEnv::getProductionURI(
+              '/D'.$revision->getID().
+              '?vs='.$vs_diff->getID().
+              '&id='.$diff->getID().
+              '#toc');
+          }
+
+          $xactions = array();
+
+          $xactions[] = id(new DifferentialTransaction())
+            ->setTransactionType(DifferentialTransaction::TYPE_ACTION)
+            ->setNewValue(DifferentialAction::ACTION_CLOSE);
+
+          $xactions[] = id(new DifferentialTransaction())
+            ->setTransactionType(DifferentialTransaction::TYPE_UPDATE)
+            ->setIgnoreOnNoEffect(true)
+            ->setNewValue($diff->getPHID());
+
+          $xactions[] = id(new DifferentialTransaction())
+            ->setTransactionType(PhabricatorTransactions::TYPE_COMMENT)
+            ->setIgnoreOnNoEffect(true)
+            ->attachComment(
+              id(new DifferentialTransactionComment())
+                ->setContent($revision_update_comment));
+
+          $content_source = PhabricatorContentSource::newForSource(
+            PhabricatorContentSource::SOURCE_DAEMON,
+            array());
+
+          $editor = id(new DifferentialTransactionEditor())
+            ->setActor($actor)
+            ->setContinueOnMissingFields(true)
+            ->setContentSource($content_source)
+            ->setChangedPriorToCommitURI($changed_uri)
+            ->setIsCloseByCommit(true);
+
+          try {
+            $editor->applyTransactions($revision, $xactions);
+          } catch (PhabricatorApplicationTransactionNoEffectException $ex) {
+            // NOTE: We've marked transactions other than the CLOSE transaction
+            // as ignored when they don't have an effect, so this means that we
+            // lost a race to close the revision. That's perfectly fine, we can
+            // just continue normally.
+          }
         }
-
       }
-
-      $lock->unlock();
     }
 
     if ($should_autoclose) {
-      $fields = DifferentialFieldSelector::newSelector()
-        ->getFieldSpecifications();
-      foreach ($fields as $key => $field) {
-        if (!$field->shouldAppearOnCommitMessage()) {
-          continue;
-        }
-        $field->setUser($user);
-        $value = idx($field_values, $field->getCommitMessageKey());
-        $field->setValueFromParsedCommitMessage($value);
-        if ($revision) {
-          $field->setRevision($revision);
-        }
-        $field->didParseCommit($repository, $commit, $data);
+      // TODO: This isn't as general as it could be.
+      if ($user->getPHID()) {
+        $this->closeTasks($user, $repository, $commit, $message);
       }
     }
 
@@ -200,7 +220,7 @@ abstract class PhabricatorRepositoryCommitMessageParserWorker
     return '@'.$handle->getName();
   }
 
-  private function attachToRevision(
+  private function generateFinalDiff(
     DifferentialRevision $revision,
     $actor_phid) {
 
@@ -232,7 +252,7 @@ abstract class PhabricatorRepositoryCommitMessageParserWorker
     }
 
     $diff = DifferentialDiff::newFromRawChanges($changes)
-      ->setRevisionID($revision->getID())
+      ->setRepositoryPHID($this->repository->getPHID())
       ->setAuthorPHID($actor_phid)
       ->setCreationMethod('commit')
       ->setSourceControlSystem($this->repository->getVersionControlSystem())
@@ -265,18 +285,19 @@ abstract class PhabricatorRepositoryCommitMessageParserWorker
 
     // TODO: Attach binary files.
 
-    $revision->setLineCount($diff->getLineCount());
-
     return $diff->save();
   }
 
-  private function loadChangedByCommit(DifferentialDiff $diff) {
+  private function loadChangedByCommit(
+    DifferentialRevision $revision,
+    DifferentialDiff $diff) {
+
     $repository = $this->repository;
 
     $vs_changesets = array();
     $vs_diff = id(new DifferentialDiff())->loadOneWhere(
       'revisionID = %d AND creationMethod != %s ORDER BY id DESC LIMIT 1',
-      $diff->getRevisionID(),
+      $revision->getID(),
       'commit');
     foreach ($vs_diff->loadChangesets() as $changeset) {
       $path = $changeset->getAbsoluteRepositoryPath($repository, $vs_diff);
@@ -379,6 +400,111 @@ abstract class PhabricatorRepositoryCommitMessageParserWorker
       ->withCommit($commit)
       ->withName($user_name)
       ->execute();
+  }
+
+  private function closeTasks(
+    PhabricatorUser $actor,
+    PhabricatorRepository $repository,
+    PhabricatorRepositoryCommit $commit,
+    $message) {
+
+    $maniphest = 'PhabricatorApplicationManiphest';
+    if (!PhabricatorApplication::isClassInstalled($maniphest)) {
+      return;
+    }
+
+    $prefixes = ManiphestTaskStatus::getStatusPrefixMap();
+    $suffixes = ManiphestTaskStatus::getStatusSuffixMap();
+
+    $matches = id(new ManiphestCustomFieldStatusParser())
+      ->parseCorpus($message);
+
+    $task_statuses = array();
+    foreach ($matches as $match) {
+      $prefix = phutil_utf8_strtolower($match['prefix']);
+      $suffix = phutil_utf8_strtolower($match['suffix']);
+
+      $status = idx($suffixes, $suffix);
+      if (!$status) {
+        $status = idx($prefixes, $prefix);
+      }
+
+      foreach ($match['monograms'] as $task_monogram) {
+        $task_id = (int)trim($task_monogram, 'tT');
+        $task_statuses[$task_id] = $status;
+      }
+    }
+
+    if (!$task_statuses) {
+      return;
+    }
+
+    $tasks = id(new ManiphestTaskQuery())
+      ->setViewer($actor)
+      ->withIDs(array_keys($task_statuses))
+      ->execute();
+
+    foreach ($tasks as $task_id => $task) {
+      $xactions = array();
+
+      // TODO: Swap this for a real edge transaction once the weirdness in
+      // Maniphest edges is sorted out. Currently, Maniphest reacts to an edge
+      // edit on this edge.
+      id(new PhabricatorEdgeEditor())
+        ->setActor($actor)
+        ->addEdge(
+          $task->getPHID(),
+          PhabricatorEdgeConfig::TYPE_TASK_HAS_COMMIT,
+          $commit->getPHID())
+        ->save();
+
+      /* TODO: Do this instead of the above.
+
+      $xactions[] = id(new ManiphestTransaction())
+        ->setTransactionType(PhabricatorTransactions::TYPE_EDGE)
+        ->setMetadataValue('edge:type', $edge_task_has_commit)
+        ->setNewValue(
+          array(
+            '+' => array(
+              $commit->getPHID() => $commit->getPHID(),
+            ),
+          ));
+      */
+
+      $status = $task_statuses[$task_id];
+      if ($status) {
+        if ($task->getStatus() != $status) {
+          $xactions[] = id(new ManiphestTransaction())
+            ->setTransactionType(ManiphestTransaction::TYPE_STATUS)
+            ->setNewValue($status);
+
+          $commit_name = $repository->formatCommitName(
+            $commit->getCommitIdentifier());
+
+          $status_message = pht(
+            'Closed by commit %s.',
+            $commit_name);
+
+          $xactions[] = id(new ManiphestTransaction())
+            ->setTransactionType(PhabricatorTransactions::TYPE_COMMENT)
+            ->attachComment(
+              id(new ManiphestTransactionComment())
+                ->setContent($status_message));
+        }
+      }
+
+      $content_source = PhabricatorContentSource::newForSource(
+        PhabricatorContentSource::SOURCE_DAEMON,
+        array());
+
+      $editor = id(new ManiphestTransactionEditor())
+        ->setActor($actor)
+        ->setContinueOnNoEffect(true)
+        ->setContinueOnMissingFields(true)
+        ->setContentSource($content_source);
+
+      $editor->applyTransactions($task, $xactions);
+    }
   }
 
 }

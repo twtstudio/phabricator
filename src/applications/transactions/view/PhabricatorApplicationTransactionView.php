@@ -11,6 +11,7 @@ class PhabricatorApplicationTransactionView extends AphrontView {
   private $showEditActions = true;
   private $isPreview;
   private $objectPHID;
+  private $shouldTerminate = false;
 
   public function setObjectPHID($object_phid) {
     $this->objectPHID = $object_phid;
@@ -48,6 +49,11 @@ class PhabricatorApplicationTransactionView extends AphrontView {
   public function setTransactions(array $transactions) {
     assert_instances_of($transactions, 'PhabricatorApplicationTransaction');
     $this->transactions = $transactions;
+    return $this;
+  }
+
+  public function setShouldTerminate($term) {
+    $this->shouldTerminate = $term;
     return $this;
   }
 
@@ -126,6 +132,7 @@ class PhabricatorApplicationTransactionView extends AphrontView {
     }
 
     $view = new PHUITimelineView();
+    $view->setShouldTerminate($this->shouldTerminate);
     $events = $this->buildEvents($with_hiding = true);
     foreach ($events as $event) {
       $view->addEvent($event);
@@ -193,14 +200,18 @@ class PhabricatorApplicationTransactionView extends AphrontView {
     $engine = $this->getOrBuildEngine();
     $comment = $xaction->getComment();
 
-    if ($xaction->hasComment()) {
+    if ($comment) {
       if ($comment->getIsDeleted()) {
         return phutil_tag(
           'em',
           array(),
           pht('This comment has been deleted.'));
-      } else {
+      } else if ($xaction->hasComment()) {
         return $engine->getOutput($comment, $field);
+      } else {
+        // This is an empty, non-deleted comment. Usually this happens when
+        // rendering previews.
+        return null;
       }
     }
 

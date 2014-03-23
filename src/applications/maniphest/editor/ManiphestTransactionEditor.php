@@ -3,6 +3,8 @@
 final class ManiphestTransactionEditor
   extends PhabricatorApplicationTransactionEditor {
 
+  private $heraldEmailPHIDs = array();
+
   public function getTransactionTypes() {
     $types = parent::getTransactionTypes();
 
@@ -271,7 +273,17 @@ final class ManiphestTransactionEditor
   }
 
   protected function getMailCC(PhabricatorLiskDAO $object) {
-    return $object->getCCPHIDs();
+    $phids = array();
+
+    foreach ($object->getCCPHIDs() as $phid) {
+      $phids[] = $phid;
+    }
+
+    foreach ($this->heraldEmailPHIDs as $phid) {
+      $phids[] = $phid;
+    }
+
+    return $phids;
   }
 
   protected function buildReplyHandler(PhabricatorLiskDAO $object) {
@@ -361,6 +373,8 @@ final class ManiphestTransactionEditor
       $object->save();
     }
 
+    $this->heraldEmailPHIDs = $adapter->getEmailPHIDs();
+
     $xactions = array();
 
     $assign_phid = $adapter->getAssignPHID();
@@ -409,6 +423,23 @@ final class ManiphestTransactionEditor
     }
   }
 
+  protected function adjustObjectForPolicyChecks(
+    PhabricatorLiskDAO $object,
+    array $xactions) {
+
+    $copy = parent::adjustObjectForPolicyChecks($object, $xactions);
+    foreach ($xactions as $xaction) {
+      switch ($xaction->getTransactionType()) {
+        case ManiphestTransaction::TYPE_OWNER:
+          $copy->setOwnerPHID($xaction->getNewValue());
+          break;
+        default:
+          continue;
+      }
+    }
+
+    return $copy;
+  }
 
   private function getNextSubpriority($pri, $sub) {
 

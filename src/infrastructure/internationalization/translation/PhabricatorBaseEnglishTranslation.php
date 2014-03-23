@@ -541,6 +541,11 @@ abstract class PhabricatorBaseEnglishTranslation
         ),
       ),
 
+      '%d other(s)' => array(
+        '1 other',
+        '%d others',
+      ),
+
       '%s edited subscriber(s), added %d: %s; removed %d: %s.' =>
         '%s edited subscribers, added: %3$s; removed: %5$s',
 
@@ -757,7 +762,7 @@ abstract class PhabricatorBaseEnglishTranslation
       '%s added %d dependencie(s): %s.' => array(
         array(
           '%s added a dependency: %3$s',
-          '%s added a dependencies: %3$s',
+          '%s added dependencies: %3$s',
         ),
       ),
 
@@ -849,6 +854,11 @@ abstract class PhabricatorBaseEnglishTranslation
       '%s older changes(s) are hidden.' => array(
         '%d older change is hidden.',
         '%d older changes are hidden.',
+      ),
+
+      '%s, %d line(s)' => array(
+        '%s, %d line',
+        '%s, %d lines',
       ),
 
     );
