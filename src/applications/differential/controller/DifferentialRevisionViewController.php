@@ -33,6 +33,7 @@ final class DifferentialRevisionViewController extends DifferentialController {
     $diffs = id(new DifferentialDiffQuery())
       ->setViewer($request->getUser())
       ->withRevisionIDs(array($this->revisionID))
+      ->needArcanistProjects(true)
       ->execute();
     $diffs = array_reverse($diffs, $preserve_keys = true);
 
@@ -61,8 +62,18 @@ final class DifferentialRevisionViewController extends DifferentialController {
       $diff_vs = null;
     }
 
-    $arc_project = $target->loadArcanistProject();
-    $repository = ($arc_project ? $arc_project->loadRepository() : null);
+    $repository = null;
+    $repository_phid = $target->getRepositoryPHID();
+    if ($repository_phid) {
+      if ($repository_phid == $revision->getRepositoryPHID()) {
+        $repository = $revision->getRepository();
+      } else {
+        $repository = id(new PhabricatorRepositoryQuery())
+          ->setViewer($user)
+          ->withPHIDs(array($repository_phid))
+          ->executeOne();
+      }
+    }
 
     list($changesets, $vs_map, $vs_changesets, $rendering_references) =
       $this->loadChangesetsAndVsMap(
@@ -186,6 +197,25 @@ final class DifferentialRevisionViewController extends DifferentialController {
       }
     }
 
+    $commit_hashes = mpull($diffs, 'getSourceControlBaseRevision');
+    $local_commits = idx($props, 'local:commits', array());
+    foreach ($local_commits as $local_commit) {
+      $commit_hashes[] = idx($local_commit, 'tree');
+      $commit_hashes[] = idx($local_commit, 'local');
+    }
+    $commit_hashes = array_unique(array_filter($commit_hashes));
+    if ($commit_hashes) {
+      $commits_for_links = id(new DiffusionCommitQuery())
+        ->setViewer($user)
+        ->withIdentifiers($commit_hashes)
+        ->execute();
+      $commits_for_links = mpull(
+        $commits_for_links,
+        null,
+        'getCommitIdentifier');
+    } else {
+      $commits_for_links = array();
+    }
 
     $revision_detail = id(new DifferentialRevisionDetailView())
       ->setUser($user)
@@ -200,6 +230,7 @@ final class DifferentialRevisionViewController extends DifferentialController {
       'whitespace',
       DifferentialChangesetParser::WHITESPACE_IGNORE_ALL);
 
+    $arc_project = $target->getArcanistProject();
     if ($arc_project) {
       list($symbol_indexes, $project_phids) = $this->buildSymbolIndexes(
         $arc_project,
@@ -267,16 +298,18 @@ final class DifferentialRevisionViewController extends DifferentialController {
     $changeset_view->setSymbolIndexes($symbol_indexes);
     $changeset_view->setTitle('Diff '.$target->getID());
 
-    $diff_history = new DifferentialRevisionUpdateHistoryView();
-    $diff_history->setDiffs($diffs);
-    $diff_history->setSelectedVersusDiffID($diff_vs);
-    $diff_history->setSelectedDiffID($target->getID());
-    $diff_history->setSelectedWhitespace($whitespace);
-    $diff_history->setUser($user);
+    $diff_history = id(new DifferentialRevisionUpdateHistoryView())
+      ->setUser($user)
+      ->setDiffs($diffs)
+      ->setSelectedVersusDiffID($diff_vs)
+      ->setSelectedDiffID($target->getID())
+      ->setSelectedWhitespace($whitespace)
+      ->setCommitsForLinks($commits_for_links);
 
-    $local_view = new DifferentialLocalCommitsView();
-    $local_view->setUser($user);
-    $local_view->setLocalCommits(idx($props, 'local:commits'));
+    $local_view = id(new DifferentialLocalCommitsView())
+      ->setUser($user)
+      ->setLocalCommits(idx($props, 'local:commits'))
+      ->setCommitsForLinks($commits_for_links);
 
     if ($repository) {
       $other_revisions = $this->loadOtherRevisions(
@@ -406,6 +439,7 @@ final class DifferentialRevisionViewController extends DifferentialController {
 
     $crumbs = $this->buildApplicationCrumbs();
     $crumbs->addTextCrumb($object_id, '/'.$object_id);
+    $crumbs->setActionList($revision_detail->getActionList());
 
     $prefs = $user->loadPreferences();
 
@@ -433,6 +467,7 @@ final class DifferentialRevisionViewController extends DifferentialController {
       array(
         'title' => $object_id.' '.$revision->getTitle(),
         'pageObjects' => array($revision->getPHID()),
+        'device' => true,
       ));
   }
 

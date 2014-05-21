@@ -9,6 +9,7 @@ final class HarbormasterBuild extends HarbormasterDAO
 
   private $buildable = self::ATTACHABLE;
   private $buildPlan = self::ATTACHABLE;
+  private $buildTargets = self::ATTACHABLE;
   private $unprocessedCommands = self::ATTACHABLE;
 
   /**
@@ -20,11 +21,6 @@ final class HarbormasterBuild extends HarbormasterDAO
    * Pending pick up by the Harbormaster daemon.
    */
   const STATUS_PENDING = 'pending';
-
-  /**
-   * Waiting for a resource to be allocated (not yet relevant).
-   */
-  const STATUS_WAITING = 'waiting';
 
   /**
    * Current building the buildable.
@@ -50,6 +46,34 @@ final class HarbormasterBuild extends HarbormasterDAO
    * The build has been stopped.
    */
   const STATUS_STOPPED = 'stopped';
+
+
+  /**
+   * Get a human readable name for a build status constant.
+   *
+   * @param  const  Build status constant.
+   * @return string Human-readable name.
+   */
+  public static function getBuildStatusName($status) {
+    switch ($status) {
+      case self::STATUS_INACTIVE:
+        return pht('Inactive');
+      case self::STATUS_PENDING:
+        return pht('Pending');
+      case self::STATUS_BUILDING:
+        return pht('Building');
+      case self::STATUS_PASSED:
+        return pht('Passed');
+      case self::STATUS_FAILED:
+        return pht('Failed');
+      case self::STATUS_ERROR:
+        return pht('Unexpected Error');
+      case self::STATUS_STOPPED:
+        return pht('Stopped');
+      default:
+        return pht('Unknown');
+    }
+  }
 
   public static function initializeNewBuild(PhabricatorUser $actor) {
     return id(new HarbormasterBuild())
@@ -102,9 +126,17 @@ final class HarbormasterBuild extends HarbormasterDAO
     return $this->assertAttached($this->buildPlan);
   }
 
+  public function getBuildTargets() {
+    return $this->assertAttached($this->buildTargets);
+  }
+
+  public function attachBuildTargets(array $targets) {
+    $this->buildTargets = $targets;
+    return $this;
+  }
+
   public function isBuilding() {
     return $this->getBuildStatus() === self::STATUS_PENDING ||
-      $this->getBuildStatus() === self::STATUS_WAITING ||
       $this->getBuildStatus() === self::STATUS_BUILDING;
   }
 
@@ -158,7 +190,8 @@ final class HarbormasterBuild extends HarbormasterDAO
       'repository.vcs' => null,
       'repository.uri' => null,
       'step.timestamp' => null,
-      'build.id' => null);
+      'build.id' => null,
+    );
 
     $buildable = $this->getBuildable();
     $object = $buildable->getBuildableObject();
@@ -200,7 +233,9 @@ final class HarbormasterBuild extends HarbormasterDAO
       'repository.uri' =>
         pht('The URI to clone or checkout the repository from.'),
       'step.timestamp' => pht('The current UNIX timestamp.'),
-      'build.id' => pht('The ID of the current build.'));
+      'build.id' => pht('The ID of the current build.'),
+      'target.phid' => pht('The PHID of the current build target.'),
+    );
   }
 
   public function isComplete() {

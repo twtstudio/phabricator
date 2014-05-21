@@ -103,12 +103,67 @@ class AphrontDefaultApplicationConfiguration
       return $response;
     }
 
-    $is_serious = PhabricatorEnv::getEnvConfig('phabricator.serious-business');
-
     $user = $request->getUser();
     if (!$user) {
       // If we hit an exception very early, we won't have a user.
       $user = new PhabricatorUser();
+    }
+
+    if ($ex instanceof PhabricatorSystemActionRateLimitException) {
+      $dialog = id(new AphrontDialogView())
+        ->setTitle(pht('Slow Down!'))
+        ->setUser($user)
+        ->setErrors(array(pht('You are being rate limited.')))
+        ->appendParagraph($ex->getMessage())
+        ->appendParagraph($ex->getRateExplanation())
+        ->addCancelButton('/', pht('Okaaaaaaaaaaaaaay...'));
+
+      $response = new AphrontDialogResponse();
+      $response->setDialog($dialog);
+      return $response;
+    }
+
+    if ($ex instanceof PhabricatorAuthHighSecurityRequiredException) {
+
+      $form = id(new PhabricatorAuthSessionEngine())->renderHighSecurityForm(
+        $user,
+        $request);
+
+      $dialog = id(new AphrontDialogView())
+        ->setUser($user)
+        ->setTitle(pht('Entering High Security'))
+        ->setShortTitle(pht('Security Checkpoint'))
+        ->setWidth(AphrontDialogView::WIDTH_FORM)
+        ->addHiddenInput(AphrontRequest::TYPE_HISEC, true)
+        ->setErrors(
+          array(
+            pht(
+              'You are taking an action which requires you to enter '.
+              'high security.'),
+          ))
+        ->appendParagraph(
+          pht(
+            'High security mode helps protect your account from security '.
+            'threats, like session theft or someone messing with your stuff '.
+            'while you\'re grabbing a coffee. To enter high security mode, '.
+            'confirm your credentials.'))
+        ->appendChild($form->buildLayoutView())
+        ->appendParagraph(
+          pht(
+            'Your account will remain in high security mode for a short '.
+            'period of time. When you are finished taking sensitive '.
+            'actions, you should leave high security.'))
+        ->setSubmitURI($request->getPath())
+        ->addCancelButton($ex->getCancelURI())
+        ->addSubmitButton(pht('Enter High Security'));
+
+      foreach ($request->getPassthroughRequestParameters() as $key => $value) {
+        $dialog->addHiddenInput($key, $value);
+      }
+
+      $response = new AphrontDialogResponse();
+      $response->setDialog($dialog);
+      return $response;
     }
 
     if ($ex instanceof PhabricatorPolicyException) {
@@ -161,9 +216,9 @@ class AphrontDefaultApplicationConfiguration
         ->appendChild($content);
 
       if ($this->getRequest()->isAjax()) {
-        $dialog->addCancelButton('/', 'Close');
+        $dialog->addCancelButton('/', pht('Close'));
       } else {
-        $dialog->addCancelButton('/', $is_serious ? 'OK' : 'Away With Thee');
+        $dialog->addCancelButton('/', pht('OK'));
       }
 
       $response = new AphrontDialogResponse();

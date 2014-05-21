@@ -3,6 +3,10 @@
 final class PhabricatorSettingsPanelSSHKeys
   extends PhabricatorSettingsPanel {
 
+  public function isEditableByAdministrators() {
+    return true;
+  }
+
   public function getPanelKey() {
     return 'ssh';
   }
@@ -20,8 +24,8 @@ final class PhabricatorSettingsPanelSSHKeys
   }
 
   public function processRequest(AphrontRequest $request) {
-
-    $user = $request->getUser();
+    $viewer = $request->getUser();
+    $user = $this->getUser();
 
     $generate = $request->getStr('generate');
     if ($generate) {
@@ -34,10 +38,22 @@ final class PhabricatorSettingsPanelSSHKeys
       return $this->renderKeyListView($request);
     }
 
+    /*
+
+    NOTE: Uncomment this to test hisec.
+    TOOD: Implement this fully once hisec does something useful.
+
+    $token = id(new PhabricatorAuthSessionEngine())->requireHighSecuritySession(
+      $viewer,
+      $request,
+      '/settings/panel/ssh/');
+
+    */
+
     $id = nonempty($edit, $delete);
 
     if ($id && is_numeric($id)) {
-      // NOTE: Prevent editing/deleting of keys you don't own.
+      // NOTE: This prevents editing/deleting of keys not owned by the user.
       $key = id(new PhabricatorUserSSHKey())->loadOneWhere(
         'userPHID = %s AND id = %d',
         $user->getPHID(),
@@ -66,48 +82,19 @@ final class PhabricatorSettingsPanelSSHKeys
         $errors[] = pht('You must provide an SSH Public Key.');
         $e_key = pht('Required');
       } else {
-        $parts = str_replace("\n", '', trim($entire_key));
-        $parts = preg_split('/\s+/', $parts);
-        if (count($parts) == 2) {
-          $parts[] = ''; // Add an empty comment part.
-        } else if (count($parts) == 3) {
-          // This is the expected case.
-        } else {
-          if (preg_match('/private\s*key/i', $entire_key)) {
-            // Try to give the user a better error message if it looks like
-            // they uploaded a private key.
-            $e_key = pht('Invalid');
-            $errors[] = pht('Provide your public key, not your private key!');
-          } else {
-            $e_key = pht('Invalid');
-            $errors[] = pht('Provided public key is not properly formatted.');
-          }
-        }
 
-        if (!$errors) {
-          list($type, $body, $comment) = $parts;
+        try {
+          list($type, $body, $comment) = self::parsePublicKey($entire_key);
 
-          $recognized_keys = array(
-            'ssh-dsa',
-            'ssh-dss',
-            'ssh-rsa',
-            'ecdsa-sha2-nistp256',
-            'ecdsa-sha2-nistp384',
-            'ecdsa-sha2-nistp521',
-          );
+          $key->setKeyType($type);
+          $key->setKeyBody($body);
+          $key->setKeyHash(md5($body));
+          $key->setKeyComment($comment);
 
-          if (!in_array($type, $recognized_keys)) {
-            $e_key = pht('Invalid');
-            $type_list = implode(', ', $recognized_keys);
-            $errors[] = pht('Public key should be one of: %s', $type_list);
-          } else {
-            $key->setKeyType($type);
-            $key->setKeyBody($body);
-            $key->setKeyHash(md5($body));
-            $key->setKeyComment($comment);
-
-            $e_key = null;
-          }
+          $e_key = null;
+        } catch (Exception $ex) {
+          $e_key = pht('Invalid');
+          $errors[] = $ex->getMessage();
         }
       }
 
@@ -142,7 +129,7 @@ final class PhabricatorSettingsPanelSSHKeys
     }
 
     $form = id(new AphrontFormView())
-      ->setUser($user)
+      ->setUser($viewer)
       ->addHiddenInput('edit', $is_new ? 'true' : $key->getID())
       ->appendChild(
         id(new AphrontFormTextControl())
@@ -170,8 +157,8 @@ final class PhabricatorSettingsPanelSSHKeys
   }
 
   private function renderKeyListView(AphrontRequest $request) {
-
-    $user = $request->getUser();
+    $user = $this->getUser();
+    $viewer = $request->getUser();
 
     $keys = id(new PhabricatorUserSSHKey())->loadAllWhere(
       'userPHID = %s',
@@ -188,8 +175,8 @@ final class PhabricatorSettingsPanelSSHKeys
           $key->getName()),
         $key->getKeyComment(),
         $key->getKeyType(),
-        phabricator_date($key->getDateCreated(), $user),
-        phabricator_time($key->getDateCreated(), $user),
+        phabricator_date($key->getDateCreated(), $viewer),
+        phabricator_time($key->getDateCreated(), $viewer),
         javelin_tag(
           'a',
           array(
@@ -266,7 +253,8 @@ final class PhabricatorSettingsPanelSSHKeys
     AphrontRequest $request,
     PhabricatorUserSSHKey $key) {
 
-    $user = $request->getUser();
+    $viewer = $request->getUser();
+    $user = $this->getUser();
 
     $name = phutil_tag('strong', array(), $key->getName());
 
@@ -277,7 +265,7 @@ final class PhabricatorSettingsPanelSSHKeys
     }
 
     $dialog = id(new AphrontDialogView())
-      ->setUser($user)
+      ->setUser($viewer)
       ->addHiddenInput('delete', $key->getID())
       ->setTitle(pht('Really delete SSH Public Key?'))
       ->appendChild(phutil_tag('p', array(), pht(
@@ -291,9 +279,11 @@ final class PhabricatorSettingsPanelSSHKeys
       ->setDialog($dialog);
   }
 
-  private function processGenerate(
-    AphrontRequest $request) {
+  private function processGenerate(AphrontRequest $request) {
+    $user = $this->getUser();
     $viewer = $request->getUser();
+
+    $is_self = ($user->getPHID() == $viewer->getPHID());
 
     if ($request->isFormPost()) {
       $keys = PhabricatorSSHKeyGenerator::generateKeypair();
@@ -307,18 +297,31 @@ final class PhabricatorSettingsPanelSSHKeys
           'viewPolicy' => PhabricatorPolicies::POLICY_NOONE,
         ));
 
+      list($type, $body, $comment) = self::parsePublicKey($public_key);
+
       $key = id(new PhabricatorUserSSHKey())
-        ->setUserPHID($viewer->getPHID())
+        ->setUserPHID($user->getPHID())
         ->setName('id_rsa_phabricator')
-        ->setKeyType('rsa')
-        ->setKeyBody($public_key)
-        ->setKeyHash(md5($public_key))
-        ->setKeyComment(pht('Generated Key'))
+        ->setKeyType($type)
+        ->setKeyBody($body)
+        ->setKeyHash(md5($body))
+        ->setKeyComment(pht('Generated'))
         ->save();
 
       // NOTE: We're disabling workflow on submit so the download works. We're
       // disabling workflow on cancel so the page reloads, showing the new
       // key.
+
+      if ($is_self) {
+        $what_happened = pht(
+          'The public key has been associated with your Phabricator '.
+          'account. Use the button below to download the private key.');
+      } else {
+        $what_happened = pht(
+          'The public key has been associated with the %s account. '.
+          'Use the button below to download the private key.',
+          phutil_tag('strong', array(), $user->getUsername()));
+      }
 
       $dialog = id(new AphrontDialogView())
         ->setTitle(pht('Download Private Key'))
@@ -329,10 +332,7 @@ final class PhabricatorSettingsPanelSSHKeys
         ->appendParagraph(
           pht(
             'Successfully generated a new keypair.'))
-        ->appendParagraph(
-          pht(
-            'The public key has been associated with your Phabricator '.
-            'account. Use the button below to download the private key.'))
+        ->appendParagraph($what_happened)
         ->appendParagraph(
           pht(
             'After you download the private key, it will be destroyed. '.
@@ -350,13 +350,22 @@ final class PhabricatorSettingsPanelSSHKeys
 
     try {
       PhabricatorSSHKeyGenerator::assertCanGenerateKeypair();
+
+      if ($is_self) {
+        $explain = pht(
+          'This will generate an SSH keypair, associate the public key '.
+          'with your account, and let you download the private key.');
+      } else {
+        $explain = pht(
+          'This will generate an SSH keypair, associate the public key with '.
+          'the %s account, and let you download the private key.',
+          phutil_tag('strong', array(), $user->getUsername()));
+      }
+
       $dialog
         ->addHiddenInput('generate', true)
         ->setTitle(pht('Generate New Keypair'))
-        ->appendParagraph(
-          pht(
-            "This will generate an SSH keypair, associate the public key ".
-            "with your account, and let you download the private key."))
+        ->appendParagraph($explain)
         ->appendParagraph(
           pht(
             "Phabricator will not retain a copy of the private key."))
@@ -369,6 +378,48 @@ final class PhabricatorSettingsPanelSSHKeys
 
     return id(new AphrontDialogResponse())
       ->setDialog($dialog);
+  }
+
+  private static function parsePublicKey($entire_key) {
+    $parts = str_replace("\n", '', trim($entire_key));
+    $parts = preg_split('/\s+/', $parts);
+
+    if (count($parts) == 2) {
+      $parts[] = ''; // Add an empty comment part.
+    } else if (count($parts) == 3) {
+      // This is the expected case.
+    } else {
+      if (preg_match('/private\s*key/i', $entire_key)) {
+        // Try to give the user a better error message if it looks like
+        // they uploaded a private key.
+        throw new Exception(
+          pht('Provide your public key, not your private key!'));
+      } else {
+        throw new Exception(
+          pht('Provided public key is not properly formatted.'));
+      }
+    }
+
+    list($type, $body, $comment) = $parts;
+
+    $recognized_keys = array(
+      'ssh-dsa',
+      'ssh-dss',
+      'ssh-rsa',
+      'ecdsa-sha2-nistp256',
+      'ecdsa-sha2-nistp384',
+      'ecdsa-sha2-nistp521',
+    );
+
+    if (!in_array($type, $recognized_keys)) {
+      $type_list = implode(', ', $recognized_keys);
+      throw new Exception(
+        pht(
+          'Public key type should be one of: %s',
+          $type_list));
+    }
+
+    return array($type, $body, $comment);
   }
 
 }

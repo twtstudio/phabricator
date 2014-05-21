@@ -15,7 +15,7 @@
 
 .device-phone .phui-timeline-view {
   padding: 0;
-  background-position: 20px;
+  background-position: 24px;
 }
 
 .phui-timeline-major-event .phui-timeline-group {
@@ -125,6 +125,31 @@
   padding-left: 38px;
 }
 
+.phui-timeline-view .phui-icon-view.phui-timeline-token {
+  vertical-align: middle;
+  margin-right: 4px;
+}
+
+.phui-timeline-token.strikethrough {
+  position: relative;
+}
+
+.phui-timeline-token.strikethrough:before {
+  position: absolute;
+  content: "";
+  left: 0;
+  top: 50%;
+  right: 0;
+  border-top: 3px solid;
+  border-color: {$darkbluetext};
+
+  -webkit-transform:rotate(-40deg);
+  -moz-transform:rotate(-40deg);
+  -ms-transform:rotate(-40deg);
+  -o-transform:rotate(-40deg);
+  transform:rotate(-40deg);
+}
+
 .phui-timeline-major-event .phui-timeline-content
   .phui-timeline-core-content {
   padding: 16px 12px;
@@ -136,13 +161,17 @@
   overflow-x: auto;
 }
 
+.phui-timeline-core-content .comment-deleted {
+  font-style: italic;
+}
+
 .device .phui-timeline-event-view {
   min-height: 23px;
   position: relative;
 }
 
 .device-phone .phui-timeline-event-view {
-  margin: 0 4px;
+  margin: 0 8px;
 }
 
 .device .phui-timeline-image {
@@ -161,14 +190,11 @@
   background-color: {$lightblueborder};
   top: 0;
   left: 0;
+  text-align: center;
 }
 
-.phui-timeline-icon {
-  position: absolute;
-  left: 8px;
-  top: 8px;
-  height: 14px;
-  width: 14px;
+.phui-icon-view.phui-timeline-icon:before {
+  font-size: 14px;
 }
 
 .phui-timeline-minor-event .phui-timeline-icon-fill {
@@ -177,9 +203,12 @@
   border-radius: 3px;
 }
 
-.phui-timeline-minor-event .phui-timeline-icon {
-  top: 6px;
-  left: 6px;
+.phui-timeline-icon-fill .phui-timeline-icon {
+  margin-top: 7px;
+}
+
+.phui-timeline-minor-event .phui-timeline-icon-fill .phui-timeline-icon {
+  margin-top: 6px;
 }
 
 .phui-timeline-extra,
@@ -202,6 +231,7 @@
   display: inline-block;
   line-height: 16px;
   margin-left: 8px;
+  white-space: nowrap;
 }
 
 .device-phone .phui-timeline-extra {
@@ -274,4 +304,14 @@
   text-align: center;
   padding: 12px;
   color: {$darkgreytext};
+}
+
+.device-phone .phui-timeline-older-transactions-are-hidden {
+  margin: 0 8px;
+}
+
+
+.phui-timeline-title .phui-timeline-extra-information a {
+  font-weight: normal;
+  color: {$bluetext};
 }

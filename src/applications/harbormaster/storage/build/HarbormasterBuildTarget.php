@@ -11,11 +11,14 @@ final class HarbormasterBuildTarget extends HarbormasterDAO
   protected $targetStatus;
 
   const STATUS_PENDING = 'target/pending';
+  const STATUS_BUILDING = 'target/building';
+  const STATUS_WAITING = 'target/waiting';
   const STATUS_PASSED = 'target/passed';
   const STATUS_FAILED = 'target/failed';
 
   private $build = self::ATTACHABLE;
   private $buildStep = self::ATTACHABLE;
+  private $implementation;
 
   public static function initializeNewBuildTarget(
     HarbormasterBuild $build,
@@ -72,6 +75,10 @@ final class HarbormasterBuildTarget extends HarbormasterDAO
     return $this;
   }
 
+  public function getVariables() {
+    return parent::getVariables() + $this->getBuildTargetVariables();
+  }
+
   public function getVariable($key, $default = null) {
     return idx($this->variables, $key, $default);
   }
@@ -82,23 +89,20 @@ final class HarbormasterBuildTarget extends HarbormasterDAO
   }
 
   public function getImplementation() {
-    if ($this->className === null) {
-      throw new Exception("No implementation set for the given target.");
+    if ($this->implementation === null) {
+      $obj = HarbormasterBuildStepImplementation::requireImplementation(
+        $this->className);
+      $obj->loadSettings($this);
+      $this->implementation = $obj;
     }
 
-    static $implementations = null;
-    if ($implementations === null) {
-      $implementations = BuildStepImplementation::getImplementations();
-    }
+    return $this->implementation;
+  }
 
-    $class = $this->className;
-    if (!in_array($class, $implementations)) {
-      throw new Exception(
-        "Class name '".$class."' does not extend BuildStepImplementation.");
-    }
-    $implementation = newv($class, array());
-    $implementation->loadSettings($this);
-    return $implementation;
+  private function getBuildTargetVariables() {
+    return array(
+      'target.phid' => $this->getPHID(),
+    );
   }
 
 
@@ -126,6 +130,26 @@ final class HarbormasterBuildTarget extends HarbormasterDAO
   }
 
 
+  public function isWaiting() {
+    switch ($this->getTargetStatus()) {
+      case self::STATUS_WAITING:
+        return true;
+    }
+
+    return false;
+  }
+
+  public function isUnderway() {
+    switch ($this->getTargetStatus()) {
+      case self::STATUS_PENDING:
+      case self::STATUS_BUILDING:
+        return true;
+    }
+
+    return false;
+  }
+
+
 /* -(  PhabricatorPolicyInterface  )----------------------------------------- */
 
 
@@ -146,8 +170,7 @@ final class HarbormasterBuildTarget extends HarbormasterDAO
   }
 
   public function describeAutomaticCapability($capability) {
-    return pht(
-      'Users must be able to see a build to view its build targets.');
+    return pht('Users must be able to see a build to view its build targets.');
   }
 
 }

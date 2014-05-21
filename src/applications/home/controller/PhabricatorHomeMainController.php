@@ -148,7 +148,10 @@ final class PhabricatorHomeMainController
         'Nothing appears to be critically broken right now.');
     }
 
-    $href = '/maniphest/?statuses[]=0&priorities[]='.$unbreak_now.'#R';
+    $href = sprintf(
+      '/maniphest/?statuses[]=%s&priorities[]=%s#R',
+      implode(',', ManiphestTaskStatus::getOpenStatusConstants()),
+      $unbreak_now);
     $title = pht('Unbreak Now!');
     $panel = new AphrontPanelView();
     $panel->setHeader($this->renderSectionHeader($title, $href));
@@ -193,8 +196,11 @@ final class PhabricatorHomeMainController
     }
 
     $title = pht('Needs Triage');
-    $href = '/maniphest/?statuses[]=0&priorities[]='.$needs_triage.
-                    '&userProjects[]='.$user->getPHID().'#R';
+    $href = sprintf(
+      '/maniphest/?statuses[]=%s&priorities[]=%s&userProjects[]=%s#R',
+      implode(',', ManiphestTaskStatus::getOpenStatusConstants()),
+      $needs_triage,
+      $user->getPHID());
     $panel = new AphrontPanelView();
     $panel->setHeader($this->renderSectionHeader($title, $href));
     $panel->appendChild($this->buildTaskListView($tasks));
@@ -407,26 +413,25 @@ final class PhabricatorHomeMainController
 
     $phids = PhabricatorAuditCommentEditor::loadAuditPHIDsForUser($user);
 
-    $query = new PhabricatorAuditQuery();
-    $query->withAuditorPHIDs($phids);
-    $query->withStatus(PhabricatorAuditQuery::STATUS_OPEN);
-    $query->withAwaitingUser($user);
-    $query->needCommitData(true);
-    $query->setLimit(10);
+    $query = id(new DiffusionCommitQuery())
+      ->setViewer($user)
+      ->withAuditorPHIDs($phids)
+      ->withAuditStatus(DiffusionCommitQuery::AUDIT_STATUS_OPEN)
+      ->withAuditAwaitingUser($user)
+      ->needCommitData(true)
+      ->setLimit(10);
 
-    $audits = $query->execute();
-    $commits = $query->getCommits();
+    $commits = $query->execute();
 
-    if (!$audits) {
+    if (!$commits) {
       return $this->renderMinipanel(
         'No Audits',
         'No commits are waiting for you to audit them.');
     }
 
-    $view = new PhabricatorAuditListView();
-    $view->setAudits($audits);
-    $view->setCommits($commits);
-    $view->setUser($user);
+    $view = id(new PhabricatorAuditListView())
+      ->setCommits($commits)
+      ->setUser($user);
 
     $phids = $view->getRequiredHandlePHIDs();
     $handles = $this->loadViewerHandles($phids);
@@ -448,11 +453,12 @@ final class PhabricatorHomeMainController
 
     $phids = array($user->getPHID());
 
-    $query = new PhabricatorAuditCommitQuery();
-    $query->withAuthorPHIDs($phids);
-    $query->withStatus(PhabricatorAuditCommitQuery::STATUS_CONCERN);
-    $query->needCommitData(true);
-    $query->setLimit(10);
+    $query = id(new DiffusionCommitQuery())
+      ->setViewer($user)
+      ->withAuthorPHIDs($phids)
+      ->withAuditStatus(DiffusionCommitQuery::AUDIT_STATUS_CONCERN)
+      ->needCommitData(true)
+      ->setLimit(10);
 
     $commits = $query->execute();
 
@@ -462,9 +468,9 @@ final class PhabricatorHomeMainController
         'No one has raised concerns with your commits.');
     }
 
-    $view = new PhabricatorAuditCommitListView();
-    $view->setCommits($commits);
-    $view->setUser($user);
+    $view = id(new PhabricatorAuditListView())
+      ->setCommits($commits)
+      ->setUser($user);
 
     $phids = $view->getRequiredHandlePHIDs();
     $handles = $this->loadViewerHandles($phids);

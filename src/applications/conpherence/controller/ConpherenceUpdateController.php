@@ -55,6 +55,7 @@ final class ConpherenceUpdateController
         case ConpherenceUpdateActions::MESSAGE:
           $message = $request->getStr('text');
           $xactions = $editor->generateTransactionsFromText(
+            $user,
             $conpherence,
             $message);
           $delete_draft = true;
@@ -156,8 +157,6 @@ final class ConpherenceUpdateController
 
     if ($errors) {
       $error_view = id(new AphrontErrorView())
-        ->setTitle(pht('Errors editing conpherence.'))
-        ->setInsideDialogue(true)
         ->setErrors($errors);
     }
 

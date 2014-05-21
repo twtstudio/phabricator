@@ -76,6 +76,7 @@ final class PhabricatorAuditCommentEditor extends PhabricatorEditor {
 
     // Find any "@mentions" in the content blocks.
     $mention_ccs = PhabricatorMarkupEngine::extractPHIDsFromMentions(
+      $this->getActor(),
       $content_blocks);
     if ($mention_ccs) {
       $metacc = idx(
@@ -428,6 +429,8 @@ final class PhabricatorAuditCommentEditor extends PhabricatorEditor {
 
     $email_to = array();
     $email_cc = array();
+
+    $email_to[$comment->getActorPHID()] = true;
 
     $author_phid = $data->getCommitDetail('authorPHID');
     if ($author_phid) {

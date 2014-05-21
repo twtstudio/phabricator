@@ -90,9 +90,11 @@ abstract class CelerityResourceController extends PhabricatorController {
       'js'  => 'text/javascript; charset=utf-8',
       'png' => 'image/png',
       'gif' => 'image/gif',
-      'jpg' => 'image/jpg',
+      'jpg' => 'image/jpeg',
       'swf' => 'application/x-shockwave-flash',
       'woff' => 'font/woff',
+      'eot' => 'font/eot',
+      'ttf' => 'font/ttf',
     );
   }
 
