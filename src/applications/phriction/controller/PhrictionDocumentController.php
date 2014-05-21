@@ -1,8 +1,5 @@
 <?php
 
-/**
- * @group phriction
- */
 final class PhrictionDocumentController
   extends PhrictionController {
 
@@ -115,8 +112,10 @@ final class PhrictionDocumentController
         $core_content = $notice->render();
       } else if ($current_status == PhrictionChangeType::CHANGE_MOVE_AWAY) {
         $new_doc_id = $content->getChangeRef();
-        $new_doc = new PhrictionDocument();
-        $new_doc->load($new_doc_id);
+        $new_doc = id(new PhrictionDocumentQuery())
+          ->setViewer($user)
+          ->withIDs(array($new_doc_id))
+          ->executeOne();
 
         $slug_uri = PhrictionDocument::getSlugURI($new_doc->getSlug());
 
@@ -135,7 +134,10 @@ final class PhrictionDocumentController
       $move_notice = null;
       if ($current_status == PhrictionChangeType::CHANGE_MOVE_HERE) {
         $from_doc_id = $content->getChangeRef();
-        $from_doc = id(new PhrictionDocument())->load($from_doc_id);
+        $from_doc = id(new PhrictionDocumentQuery())
+          ->setViewer($user)
+          ->withIDs(array($from_doc_id))
+          ->executeOne();
         $slug_uri = PhrictionDocument::getSlugURI($from_doc->getSlug());
 
         $move_notice = id(new AphrontErrorView())
@@ -278,28 +280,28 @@ final class PhrictionDocumentController
       return $action_view->addAction(
         id(new PhabricatorActionView())
           ->setName(pht('Create This Document'))
-          ->setIcon('create')
+          ->setIcon('fa-plus-square')
           ->setHref('/phriction/edit/?slug='.$slug));
     }
 
     $action_view->addAction(
       id(new PhabricatorActionView())
         ->setName(pht('Edit Document'))
-        ->setIcon('edit')
+        ->setIcon('fa-pencil')
         ->setHref('/phriction/edit/'.$document->getID().'/'));
 
     if ($document->getStatus() == PhrictionDocumentStatus::STATUS_EXISTS) {
       $action_view->addAction(
         id(new PhabricatorActionView())
           ->setName(pht('Move Document'))
-          ->setIcon('move')
+          ->setIcon('fa-arrows')
           ->setHref('/phriction/move/'.$document->getID().'/')
           ->setWorkflow(true));
 
       $action_view->addAction(
         id(new PhabricatorActionView())
           ->setName(pht('Delete Document'))
-          ->setIcon('delete')
+          ->setIcon('fa-times')
           ->setHref('/phriction/delete/'.$document->getID().'/')
           ->setWorkflow(true));
     }
@@ -308,7 +310,7 @@ final class PhrictionDocumentController
       $action_view->addAction(
         id(new PhabricatorActionView())
         ->setName(pht('View History'))
-        ->setIcon('history')
+        ->setIcon('fa-list')
         ->setHref(PhrictionDocument::getSlugURI($slug, 'history')));
   }
 

@@ -1,7 +1,11 @@
 <?php
 
 /**
- * @task hisec High Security Mode
+ *
+ * @task use      Using Sessions
+ * @task new      Creating Sessions
+ * @task hisec    High Security
+ * @task partial  Partial Sessions
  */
 final class PhabricatorAuthSessionEngine extends Phobject {
 
@@ -60,6 +64,23 @@ final class PhabricatorAuthSessionEngine extends Phobject {
   }
 
 
+  /**
+   * Load the user identity associated with a session of a given type,
+   * identified by token.
+   *
+   * When the user presents a session token to an API, this method verifies
+   * it is of the correct type and loads the corresponding identity if the
+   * session exists and is valid.
+   *
+   * NOTE: `$session_type` is the type of session that is required by the
+   * loading context. This prevents use of a Conduit sesssion as a Web
+   * session, for example.
+   *
+   * @param const The type of session to load.
+   * @param string The session token.
+   * @return PhabricatorUser|null
+   * @task use
+   */
   public function loadUserForSession($session_type, $session_token) {
     $session_kind = self::getSessionKindFromToken($session_token);
     switch ($session_kind) {
@@ -94,6 +115,7 @@ final class PhabricatorAuthSessionEngine extends Phobject {
           s.sessionExpires AS s_sessionExpires,
           s.sessionStart AS s_sessionStart,
           s.highSecurityUntil AS s_highSecurityUntil,
+          s.isPartial AS s_isPartial,
           u.*
         FROM %T u JOIN %T s ON u.phid = s.userPHID
         AND s.type = %s AND s.sessionKey = %s',
@@ -159,9 +181,10 @@ final class PhabricatorAuthSessionEngine extends Phobject {
    *                    @{class:PhabricatorAuthSession}).
    * @param   phid|null Identity to establish a session for, usually a user
    *                    PHID. With `null`, generates an anonymous session.
+   * @param   bool      True to issue a partial session.
    * @return  string    Newly generated session key.
    */
-  public function establishSession($session_type, $identity_phid) {
+  public function establishSession($session_type, $identity_phid, $partial) {
     // Consume entropy to generate a new session key, forestalling the eventual
     // heat death of the universe.
     $session_key = Filesystem::readRandomCharacters(40);
@@ -176,31 +199,40 @@ final class PhabricatorAuthSessionEngine extends Phobject {
     // This has a side effect of validating the session type.
     $session_ttl = PhabricatorAuthSession::getSessionTypeTTL($session_type);
 
+    $digest_key = PhabricatorHash::digest($session_key);
+
     // Logging-in users don't have CSRF stuff yet, so we have to unguard this
     // write.
     $unguarded = AphrontWriteGuard::beginScopedUnguardedWrites();
       id(new PhabricatorAuthSession())
         ->setUserPHID($identity_phid)
         ->setType($session_type)
-        ->setSessionKey(PhabricatorHash::digest($session_key))
+        ->setSessionKey($digest_key)
         ->setSessionStart(time())
         ->setSessionExpires(time() + $session_ttl)
+        ->setIsPartial($partial ? 1 : 0)
         ->save();
 
       $log = PhabricatorUserLog::initializeNewLog(
         null,
         $identity_phid,
-        PhabricatorUserLog::ACTION_LOGIN);
+        ($partial
+          ? PhabricatorUserLog::ACTION_LOGIN_PARTIAL
+          : PhabricatorUserLog::ACTION_LOGIN));
+
       $log->setDetails(
         array(
           'session_type' => $session_type,
         ));
-      $log->setSession($session_key);
+      $log->setSession($digest_key);
       $log->save();
     unset($unguarded);
 
     return $session_key;
   }
+
+
+/* -(  High Security  )------------------------------------------------------ */
 
 
   /**
@@ -214,6 +246,7 @@ final class PhabricatorAuthSessionEngine extends Phobject {
    * @param AphrontReqeust  Current request.
    * @param string          URI to return the user to if they cancel.
    * @return PhabricatorAuthHighSecurityToken Security token.
+   * @task hisec
    */
   public function requireHighSecuritySession(
     PhabricatorUser $viewer,
@@ -227,34 +260,94 @@ final class PhabricatorAuthSessionEngine extends Phobject {
 
     $session = $viewer->getSession();
 
+    // Check if the session is already in high security mode.
     $token = $this->issueHighSecurityToken($session);
     if ($token) {
       return $token;
     }
 
+    // Load the multi-factor auth sources attached to this account.
+    $factors = id(new PhabricatorAuthFactorConfig())->loadAllWhere(
+      'userPHID = %s',
+      $viewer->getPHID());
+
+    // If the account has no associated multi-factor auth, just issue a token
+    // without putting the session into high security mode. This is generally
+    // easier for users. A minor but desirable side effect is that when a user
+    // adds an auth factor, existing sessions won't get a free pass into hisec,
+    // since they never actually got marked as hisec.
+    if (!$factors) {
+      return $this->issueHighSecurityToken($session, true);
+    }
+
+    // Check for a rate limit without awarding points, so the user doesn't
+    // get partway through the workflow only to get blocked.
+    PhabricatorSystemActionEngine::willTakeAction(
+      array($viewer->getPHID()),
+      new PhabricatorAuthTryFactorAction(),
+      0);
+
+    $validation_results = array();
     if ($request->isHTTPPost()) {
       $request->validateCSRF();
       if ($request->getExists(AphrontRequest::TYPE_HISEC)) {
 
-        // TODO: Actually verify that the user provided some multi-factor
-        // auth credentials here. For now, we just let you enter high
-        // security.
+        // Limit factor verification rates to prevent brute force attacks.
+        PhabricatorSystemActionEngine::willTakeAction(
+          array($viewer->getPHID()),
+          new PhabricatorAuthTryFactorAction(),
+          1);
 
-        $until = time() + phutil_units('15 minutes in seconds');
-        $session->setHighSecurityUntil($until);
+        $ok = true;
+        foreach ($factors as $factor) {
+          $id = $factor->getID();
+          $impl = $factor->requireImplementation();
 
-        queryfx(
-          $session->establishConnection('w'),
-          'UPDATE %T SET highSecurityUntil = %d WHERE id = %d',
-          $session->getTableName(),
-          $until,
-          $session->getID());
+          $validation_results[$id] = $impl->processValidateFactorForm(
+            $factor,
+            $viewer,
+            $request);
 
-        $log = PhabricatorUserLog::initializeNewLog(
-          $viewer,
-          $viewer->getPHID(),
-          PhabricatorUserLog::ACTION_ENTER_HISEC);
-        $log->save();
+          if (!$impl->isFactorValid($factor, $validation_results[$id])) {
+            $ok = false;
+          }
+        }
+
+        if ($ok) {
+          // Give the user a credit back for a successful factor verification.
+          PhabricatorSystemActionEngine::willTakeAction(
+            array($viewer->getPHID()),
+            new PhabricatorAuthTryFactorAction(),
+            -1);
+
+          if ($session->getIsPartial()) {
+            // If we have a partial session, just issue a token without
+            // putting it in high security mode.
+            return $this->issueHighSecurityToken($session, true);
+          }
+
+          $until = time() + phutil_units('15 minutes in seconds');
+          $session->setHighSecurityUntil($until);
+
+          queryfx(
+            $session->establishConnection('w'),
+            'UPDATE %T SET highSecurityUntil = %d WHERE id = %d',
+            $session->getTableName(),
+            $until,
+            $session->getID());
+
+          $log = PhabricatorUserLog::initializeNewLog(
+            $viewer,
+            $viewer->getPHID(),
+            PhabricatorUserLog::ACTION_ENTER_HISEC);
+          $log->save();
+        } else {
+          $log = PhabricatorUserLog::initializeNewLog(
+            $viewer,
+            $viewer->getPHID(),
+            PhabricatorUserLog::ACTION_FAIL_HISEC);
+          $log->save();
+        }
       }
     }
 
@@ -264,7 +357,9 @@ final class PhabricatorAuthSessionEngine extends Phobject {
     }
 
     throw id(new PhabricatorAuthHighSecurityRequiredException())
-      ->setCancelURI($cancel_uri);
+      ->setCancelURI($cancel_uri)
+      ->setFactors($factors)
+      ->setFactorValidationResults($validation_results);
   }
 
 
@@ -272,13 +367,19 @@ final class PhabricatorAuthSessionEngine extends Phobject {
    * Issue a high security token for a session, if authorized.
    *
    * @param PhabricatorAuthSession Session to issue a token for.
+   * @param bool Force token issue.
    * @return PhabricatorAuthHighSecurityToken|null Token, if authorized.
+   * @task hisec
    */
-  private function issueHighSecurityToken(PhabricatorAuthSession $session) {
+  private function issueHighSecurityToken(
+    PhabricatorAuthSession $session,
+    $force = false) {
+
     $until = $session->getHighSecurityUntil();
-    if ($until > time()) {
+    if ($until > time() || $force) {
       return new PhabricatorAuthHighSecurityToken();
     }
+
     return null;
   }
 
@@ -286,31 +387,52 @@ final class PhabricatorAuthSessionEngine extends Phobject {
   /**
    * Render a form for providing relevant multi-factor credentials.
    *
-   * @param   PhabricatorUser Viewing user.
-   * @param   AphrontRequest  Current request.
-   * @return  AphrontFormView Renderable form.
+   * @param PhabricatorUser Viewing user.
+   * @param AphrontRequest Current request.
+   * @return AphrontFormView Renderable form.
+   * @task hisec
    */
   public function renderHighSecurityForm(
+    array $factors,
+    array $validation_results,
     PhabricatorUser $viewer,
     AphrontRequest $request) {
 
-    // TODO: This is stubbed.
-
     $form = id(new AphrontFormView())
       ->setUser($viewer)
-      ->appendRemarkupInstructions('')
-      ->appendChild(
-        id(new AphrontFormTextControl())
-          ->setLabel(pht('Secret Stuff')))
       ->appendRemarkupInstructions('');
+
+    foreach ($factors as $factor) {
+      $factor->requireImplementation()->renderValidateFactorForm(
+        $factor,
+        $form,
+        $viewer,
+        idx($validation_results, $factor->getID()));
+    }
+
+    $form->appendRemarkupInstructions('');
 
     return $form;
   }
 
 
+  /**
+   * Strip the high security flag from a session.
+   *
+   * Kicks a session out of high security and logs the exit.
+   *
+   * @param PhabricatorUser Acting user.
+   * @param PhabricatorAuthSession Session to return to normal security.
+   * @return void
+   * @task hisec
+   */
   public function exitHighSecurity(
     PhabricatorUser $viewer,
     PhabricatorAuthSession $session) {
+
+    if (!$session->getHighSecurityUntil()) {
+      return;
+    }
 
     queryfx(
       $session->establishConnection('w'),
@@ -323,6 +445,48 @@ final class PhabricatorAuthSessionEngine extends Phobject {
       $viewer->getPHID(),
       PhabricatorUserLog::ACTION_EXIT_HISEC);
     $log->save();
+  }
+
+
+/* -(  Partial Sessions  )--------------------------------------------------- */
+
+
+  /**
+   * Upgrade a partial session to a full session.
+   *
+   * @param PhabricatorAuthSession Session to upgrade.
+   * @return void
+   * @task partial
+   */
+  public function upgradePartialSession(PhabricatorUser $viewer) {
+    if (!$viewer->hasSession()) {
+      throw new Exception(
+        pht('Upgrading partial session of user with no session!'));
+    }
+
+    $session = $viewer->getSession();
+
+    if (!$session->getIsPartial()) {
+      throw new Exception(pht('Session is not partial!'));
+    }
+
+    $unguarded = AphrontWriteGuard::beginScopedUnguardedWrites();
+      $session->setIsPartial(0);
+
+      queryfx(
+        $session->establishConnection('w'),
+        'UPDATE %T SET isPartial = %d WHERE id = %d',
+        $session->getTableName(),
+        0,
+        $session->getID());
+
+      $log = PhabricatorUserLog::initializeNewLog(
+        $viewer,
+        $viewer->getPHID(),
+        PhabricatorUserLog::ACTION_LOGIN_FULL);
+      $log->save();
+    unset($unguarded);
+
   }
 
 }

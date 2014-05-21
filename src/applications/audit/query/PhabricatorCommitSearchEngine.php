@@ -12,7 +12,7 @@ final class PhabricatorCommitSearchEngine
 
     $saved->setParameter(
       'commitAuthorPHIDs',
-      $this->readUsersFromRequest($request, 'commitAuthorPHIDs'));
+      $this->readUsersFromRequest($request, 'authors'));
 
     $saved->setParameter(
       'auditStatus',
@@ -88,7 +88,7 @@ final class PhabricatorCommitSearchEngine
       ->appendChild(
         id(new AphrontFormTokenizerControl())
           ->setDatasource('/typeahead/common/users/')
-          ->setName('commitAuthorPHIDs')
+          ->setName('authors')
           ->setLabel(pht('Commit Authors'))
           ->setValue(array_select_keys($handles, $commit_author_phids)))
        ->appendChild(
@@ -107,9 +107,15 @@ final class PhabricatorCommitSearchEngine
     $names = array();
 
     if ($this->requireViewer()->isLoggedIn()) {
-      $names['need_attention'] = pht('Need Attention');
+      $names['need'] = pht('Need Attention');
+      $names['problem'] = pht('Problem Commits');
     }
+
     $names['open'] = pht('Open Audits');
+
+    if ($this->requireViewer()->isLoggedIn()) {
+      $names['authored'] = pht('Authored Commits');
+    }
 
     $names['all'] = pht('All Commits');
 
@@ -129,7 +135,7 @@ final class PhabricatorCommitSearchEngine
           'auditStatus',
           DiffusionCommitQuery::AUDIT_STATUS_OPEN);
         return $query;
-      case 'need_attention':
+      case 'need':
         $query->setParameter('awaitingUserPHID', $viewer->getPHID());
         $query->setParameter(
           'auditStatus',
@@ -137,6 +143,15 @@ final class PhabricatorCommitSearchEngine
         $query->setParameter(
           'auditorPHIDs',
           PhabricatorAuditCommentEditor::loadAuditPHIDsForUser($viewer));
+        return $query;
+      case 'authored':
+        $query->setParameter('commitAuthorPHIDs', array($viewer->getPHID()));
+        return $query;
+      case 'problem':
+        $query->setParameter('commitAuthorPHIDs', array($viewer->getPHID()));
+        $query->setParameter(
+          'auditStatus',
+          DiffusionCommitQuery::AUDIT_STATUS_CONCERN);
         return $query;
     }
 
@@ -149,6 +164,37 @@ final class PhabricatorCommitSearchEngine
       DiffusionCommitQuery::AUDIT_STATUS_OPEN => pht('Open'),
       DiffusionCommitQuery::AUDIT_STATUS_CONCERN => pht('Concern Raised'),
     );
+  }
+
+  protected function renderResultList(
+    array $commits,
+    PhabricatorSavedQuery $query,
+    array $handles) {
+
+    assert_instances_of($commits, 'PhabricatorRepositoryCommit');
+
+    $viewer = $this->requireViewer();
+    $nodata = pht('No matching audits.');
+    $view = id(new PhabricatorAuditListView())
+      ->setUser($viewer)
+      ->setCommits($commits)
+      ->setAuthorityPHIDs(
+        PhabricatorAuditCommentEditor::loadAuditPHIDsForUser($viewer))
+      ->setNoDataString($nodata);
+
+    $phids = $view->getRequiredHandlePHIDs();
+    if ($phids) {
+      $handles = id(new PhabricatorHandleQuery())
+        ->setViewer($viewer)
+        ->withPHIDs($phids)
+        ->execute();
+    } else {
+      $handles = array();
+    }
+
+    $view->setHandles($handles);
+
+    return $view->buildList();
   }
 
 }

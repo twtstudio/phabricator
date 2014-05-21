@@ -14,6 +14,10 @@ abstract class CelerityResourceController extends PhabricatorController {
     return false;
   }
 
+  public function shouldAllowPartialSessions() {
+    return true;
+  }
+
   abstract public function getCelerityResourceMap();
 
   protected function serveResource($path, $package_hash = null) {
@@ -24,7 +28,7 @@ abstract class CelerityResourceController extends PhabricatorController {
     }
 
     $type = CelerityResourceTransformer::getResourceType($path);
-    $type_map = $this->getSupportedResourceTypes();
+    $type_map = self::getSupportedResourceTypes();
 
     if (empty($type_map[$type])) {
       throw new Exception("Only static resources may be served.");
@@ -84,7 +88,7 @@ abstract class CelerityResourceController extends PhabricatorController {
     return $this->makeResponseCacheable($response);
   }
 
-  protected function getSupportedResourceTypes() {
+  public static function getSupportedResourceTypes() {
     return array(
       'css' => 'text/css; charset=utf-8',
       'js'  => 'text/javascript; charset=utf-8',

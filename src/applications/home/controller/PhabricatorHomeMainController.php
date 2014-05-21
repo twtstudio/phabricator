@@ -20,15 +20,36 @@ final class PhabricatorHomeMainController
     if ($this->filter == 'jump') {
       return $this->buildJumpResponse();
     }
-
     $nav = $this->buildNav();
 
-    $project_query = new PhabricatorProjectQuery();
-    $project_query->setViewer($user);
-    $project_query->withMemberPHIDs(array($user->getPHID()));
-    $projects = $project_query->execute();
+    $dashboard = PhabricatorDashboardInstall::getDashboard(
+      $user,
+      $user->getPHID(),
+      get_class($this->getCurrentApplication()));
+    if ($dashboard) {
+      $rendered_dashboard = id(new PhabricatorDashboardRenderingEngine())
+        ->setViewer($user)
+        ->setDashboard($dashboard)
+        ->renderDashboard();
+      $nav->appendChild($rendered_dashboard);
+    } else {
+      $project_query = new PhabricatorProjectQuery();
+      $project_query->setViewer($user);
+      $project_query->withMemberPHIDs(array($user->getPHID()));
+      $projects = $project_query->execute();
 
-    return $this->buildMainResponse($nav, $projects);
+      $nav = $this->buildMainResponse($nav, $projects);
+    }
+
+    $nav->appendChild(id(new PhabricatorGlobalUploadTargetView())
+      ->setUser($user));
+
+    return $this->buildApplicationPage(
+      $nav,
+      array(
+        'title' => 'Phabricator',
+        'device' => true,
+      ));
   }
 
   private function buildMainResponse($nav, array $projects) {
@@ -91,17 +112,10 @@ final class PhabricatorHomeMainController
       $this->minipanels,
     );
 
-    $user = $this->getRequest()->getUser();
     $nav->appendChild($content);
-    $nav->appendChild(id(new PhabricatorGlobalUploadTargetView())
-      ->setUser($user));
 
-    return $this->buildApplicationPage(
-      $nav,
-      array(
-        'title' => 'Phabricator',
-        'device' => true,
-      ));
+    return $nav;
+
   }
 
   private function buildJumpResponse() {
@@ -148,8 +162,8 @@ final class PhabricatorHomeMainController
         'Nothing appears to be critically broken right now.');
     }
 
-    $href = sprintf(
-      '/maniphest/?statuses[]=%s&priorities[]=%s#R',
+    $href = urisprintf(
+      '/maniphest/?statuses=%s&priorities=%s#R',
       implode(',', ManiphestTaskStatus::getOpenStatusConstants()),
       $unbreak_now);
     $title = pht('Unbreak Now!');
@@ -196,8 +210,8 @@ final class PhabricatorHomeMainController
     }
 
     $title = pht('Needs Triage');
-    $href = sprintf(
-      '/maniphest/?statuses[]=%s&priorities[]=%s&userProjects[]=%s#R',
+    $href = urisprintf(
+      '/maniphest/?statuses=%s&priorities=%s&userProjects=%s#R',
       implode(',', ManiphestTaskStatus::getOpenStatusConstants()),
       $needs_triage,
       $user->getPHID());
@@ -418,6 +432,7 @@ final class PhabricatorHomeMainController
       ->withAuditorPHIDs($phids)
       ->withAuditStatus(DiffusionCommitQuery::AUDIT_STATUS_OPEN)
       ->withAuditAwaitingUser($user)
+      ->needAuditRequests(true)
       ->needCommitData(true)
       ->setLimit(10);
 
@@ -458,6 +473,7 @@ final class PhabricatorHomeMainController
       ->withAuthorPHIDs($phids)
       ->withAuditStatus(DiffusionCommitQuery::AUDIT_STATUS_CONCERN)
       ->needCommitData(true)
+      ->needAuditRequests(true)
       ->setLimit(10);
 
     $commits = $query->execute();

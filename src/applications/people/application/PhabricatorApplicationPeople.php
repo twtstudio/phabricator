@@ -120,6 +120,7 @@ final class PhabricatorApplicationPeople extends PhabricatorApplication {
         ->setName($user->getUsername())
         ->setHref('/p/'.$user->getUsername().'/')
         ->addClass('core-menu-item')
+        ->setAural(pht('Profile'))
         ->setOrder(100);
 
       $classes = array(
@@ -149,7 +150,7 @@ final class PhabricatorApplicationPeople extends PhabricatorApplication {
     if ($viewer->getIsAdmin()) {
       $item = id(new PHUIListItemView())
         ->setName(pht('User Account'))
-        ->setAppIcon('people-dark')
+        ->setIcon('fa-users')
         ->setHref($this->getBaseURI().'create/');
       $items[] = $item;
     }

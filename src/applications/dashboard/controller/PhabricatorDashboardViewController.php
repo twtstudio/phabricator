@@ -16,6 +16,7 @@ final class PhabricatorDashboardViewController
     $dashboard = id(new PhabricatorDashboardQuery())
       ->setViewer($viewer)
       ->withIDs(array($this->id))
+      ->needPanels(true)
       ->executeOne();
     if (!$dashboard) {
       return new Aphront404Response();
@@ -35,11 +36,17 @@ final class PhabricatorDashboardViewController
       ->setHeader($header)
       ->addPropertyList($properties);
 
+    $rendered_dashboard = id(new PhabricatorDashboardRenderingEngine())
+      ->setViewer($viewer)
+      ->setDashboard($dashboard)
+      ->renderDashboard();
+
     return $this->buildApplicationPage(
       array(
         $crumbs,
         $box,
         $timeline,
+        $rendered_dashboard,
       ),
       array(
         'title' => $title,
@@ -72,10 +79,46 @@ final class PhabricatorDashboardViewController
     $actions->addAction(
       id(new PhabricatorActionView())
         ->setName(pht('Edit Dashboard'))
-        ->setIcon('edit')
+        ->setIcon('fa-pencil')
         ->setHref($this->getApplicationURI("edit/{$id}/"))
         ->setDisabled(!$can_edit)
         ->setWorkflow(!$can_edit));
+
+    $actions->addAction(
+      id(new PhabricatorActionView())
+        ->setName(pht('Arrange Dashboard'))
+        ->setIcon('fa-arrows')
+        ->setHref($this->getApplicationURI("arrange/{$id}/"))
+        ->setDisabled(!$can_edit)
+        ->setWorkflow(!$can_edit));
+
+    $installed_dashboard = id(new PhabricatorDashboardInstall())
+      ->loadOneWhere(
+        'objectPHID = %s AND applicationClass = %s',
+        $viewer->getPHID(),
+        'PhabricatorApplicationHome');
+    if ($installed_dashboard &&
+        $installed_dashboard->getDashboardPHID() == $dashboard->getPHID()) {
+      $title_install = pht('Uninstall Dashboard');
+      $href_install = "uninstall/{$id}/";
+    } else {
+      $title_install = pht('Install Dashboard');
+      $href_install = "install/{$id}/";
+    }
+    $actions->addAction(
+      id(new PhabricatorActionView())
+      ->setName($title_install)
+      ->setIcon('fa-wrench')
+      ->setHref($this->getApplicationURI($href_install))
+      ->setWorkflow(true));
+
+    $actions->addAction(
+      id(new PhabricatorActionView())
+        ->setName(pht('Add Panel'))
+        ->setIcon('fa-plus')
+        ->setHref($this->getApplicationURI("addpanel/{$id}/"))
+        ->setDisabled(!$can_edit)
+        ->setWorkflow(true));
 
     return $actions;
   }
@@ -94,6 +137,13 @@ final class PhabricatorDashboardViewController
     $properties->addProperty(
       pht('Editable By'),
       $descriptions[PhabricatorPolicyCapability::CAN_EDIT]);
+
+    $panel_phids = $dashboard->getPanelPHIDs();
+    $this->loadHandles($panel_phids);
+
+    $properties->addProperty(
+      pht('Panels'),
+      $this->renderHandlesForPHIDs($panel_phids));
 
     return $properties;
   }

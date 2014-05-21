@@ -207,8 +207,7 @@ final class ManiphestTaskDetailController extends ManiphestController {
     $submit_control = id(new PHUIFormMultiSubmitControl());
     if (!$task->isClosed()) {
       $close_image = id(new PHUIIconView())
-          ->setSpriteSheet(PHUIIconView::SPRITE_ICONS)
-          ->setSpriteIcon('check');
+          ->setIconFont('fa-check-square-o');
       $submit_control->addButtonView(
         id(new PHUIButtonView())
           ->setColor(PHUIButtonView::GREY)
@@ -376,6 +375,8 @@ final class ManiphestTaskDetailController extends ManiphestController {
         ->setFlush(true)
         ->setHeaderText($comment_header)
         ->appendChild($comment_form);
+      $timeline->setQuoteTargetID('transaction-comments');
+      $timeline->setQuoteRef($object_name);
     }
 
     $object_box = id(new PHUIObjectBoxView())
@@ -438,7 +439,7 @@ final class ManiphestTaskDetailController extends ManiphestController {
     $view->addAction(
       id(new PhabricatorActionView())
         ->setName(pht('Edit Task'))
-        ->setIcon('edit')
+        ->setIcon('fa-pencil')
         ->setHref($this->getApplicationURI("/task/edit/{$id}/"))
         ->setDisabled(!$can_edit)
         ->setWorkflow(!$can_edit));
@@ -448,11 +449,11 @@ final class ManiphestTaskDetailController extends ManiphestController {
         id(new PhabricatorActionView())
           ->setName(pht('Automatically Subscribed'))
           ->setDisabled(true)
-          ->setIcon('enable'));
+          ->setIcon('fa-check-circle'));
     } else {
       $action = $viewer_is_cc ? 'rem' : 'add';
       $name   = $viewer_is_cc ? pht('Unsubscribe') : pht('Subscribe');
-      $icon   = $viewer_is_cc ? 'disable' : 'check';
+      $icon   = $viewer_is_cc ? 'fa-minus-circle' : 'fa-plus-circle';
 
       $view->addAction(
         id(new PhabricatorActionView())
@@ -468,7 +469,7 @@ final class ManiphestTaskDetailController extends ManiphestController {
         ->setName(pht('Merge Duplicates In'))
         ->setHref("/search/attach/{$phid}/TASK/merge/")
         ->setWorkflow(true)
-        ->setIcon('merge')
+        ->setIcon('fa-compress')
         ->setDisabled(!$can_edit)
         ->setWorkflow(true));
 
@@ -476,14 +477,14 @@ final class ManiphestTaskDetailController extends ManiphestController {
       id(new PhabricatorActionView())
         ->setName(pht('Create Subtask'))
         ->setHref($this->getApplicationURI("/task/create/?parent={$id}"))
-        ->setIcon('fork'));
+        ->setIcon('fa-level-down'));
 
     $view->addAction(
       id(new PhabricatorActionView())
         ->setName(pht('Edit Dependencies'))
         ->setHref("/search/attach/{$phid}/TASK/dependencies/")
         ->setWorkflow(true)
-        ->setIcon('link')
+        ->setIcon('fa-link')
         ->setDisabled(!$can_edit)
         ->setWorkflow(true));
 

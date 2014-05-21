@@ -9,7 +9,6 @@ final class PHUIIconView extends AphrontTagView {
   const SPRITE_PAYMENTS = 'payments';
   const SPRITE_ICONS = 'icons';
   const SPRITE_LOGIN = 'login';
-  const SPRITE_STATUS = 'status';
   const SPRITE_PROJECTS = 'projects';
   const SPRITE_BUTTONBAR = 'buttonbar';
 
@@ -101,6 +100,7 @@ final class PHUIIconView extends AphrontTagView {
     return array(
       'href' => $this->href,
       'style' => $style,
+      'aural' => false,
       'class' => $classes,
     );
   }

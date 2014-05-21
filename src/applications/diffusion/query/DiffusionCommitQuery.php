@@ -88,13 +88,28 @@ final class DiffusionCommitQuery
     return $this;
   }
 
-  public function getAuditRequests() {
+  /**
+   * Retuns true if we should join the audit table, either because we're
+   * interested in the information if it's available or because matching
+   * rows must always have it.
+   */
+  private function shouldJoinAudits() {
     return
       $this->needAuditRequests ||
+      $this->auditStatus ||
+      $this->rowsMustHaveAudits();
+  }
+
+
+  /**
+   * Return true if we should `JOIN` (vs `LEFT JOIN`) the audit table, because
+   * matching commits will always have audit rows.
+   */
+  private function rowsMustHaveAudits() {
+    return
       $this->auditIDs ||
       $this->auditorPHIDs ||
-      $this->auditAwaitingUser ||
-      $this->auditStatus;
+      $this->auditAwaitingUser;
   }
 
   public function withAuditIDs(array $ids) {
@@ -149,7 +164,7 @@ final class DiffusionCommitQuery
       $this->buildOrderClause($conn_r),
       $this->buildLimitClause($conn_r));
 
-    if ($this->getAuditRequests()) {
+    if ($this->shouldJoinAudits()) {
       $this->loadAuditIds = ipull($data, 'audit_id');
     }
 
@@ -157,7 +172,7 @@ final class DiffusionCommitQuery
   }
 
   private function buildAuditSelect($conn_r) {
-    if ($this->getAuditRequests()) {
+    if ($this->shouldJoinAudits()) {
       return qsprintf(
         $conn_r,
         ', audit.id as audit_id');
@@ -235,13 +250,21 @@ final class DiffusionCommitQuery
       $data = mpull($data, null, 'getCommitID');
       foreach ($commits as $commit) {
         $commit_data = idx($data, $commit->getID());
+        if (!$commit_data) {
+          $commit_data = new PhabricatorRepositoryCommitData();
+        }
         $commit->attachCommitData($commit_data);
       }
     }
 
-    if ($this->getAuditRequests()) {
-      $requests = id(new PhabricatorRepositoryAuditRequest())
-        ->loadAllWhere('id IN (%Ld)', $this->loadAuditIds);
+    if ($this->shouldJoinAudits()) {
+      $load_ids = array_filter($this->loadAuditIds);
+      if ($load_ids) {
+        $requests = id(new PhabricatorRepositoryAuditRequest())
+          ->loadAllWhere('id IN (%Ld)', $this->loadAuditIds);
+      } else {
+        $requests = array();
+      }
 
       $requests = mgroup($requests, 'getCommitPHID');
       foreach ($commits as $commit) {
@@ -259,35 +282,35 @@ final class DiffusionCommitQuery
   private function buildWhereClause(AphrontDatabaseConnection $conn_r) {
     $where = array();
 
-    if ($this->ids) {
+    if ($this->ids !== null) {
       $where[] = qsprintf(
         $conn_r,
         'commit.id IN (%Ld)',
         $this->ids);
     }
 
-    if ($this->phids) {
+    if ($this->phids !== null) {
       $where[] = qsprintf(
         $conn_r,
         'commit.phid IN (%Ls)',
         $this->phids);
     }
 
-    if ($this->repositoryIDs) {
+    if ($this->repositoryIDs !== null) {
       $where[] = qsprintf(
         $conn_r,
         'commit.repositoryID IN (%Ld)',
         $this->repositoryIDs);
     }
 
-    if ($this->authorPHIDs) {
+    if ($this->authorPHIDs !== null) {
       $where[] = qsprintf(
         $conn_r,
         'commit.authorPHID IN (%Ls)',
         $this->authorPHIDs);
     }
 
-    if ($this->identifiers) {
+    if ($this->identifiers !== null) {
       $min_unqualified = PhabricatorRepository::MINIMUM_UNQUALIFIED_HASH;
       $min_qualified   = PhabricatorRepository::MINIMUM_QUALIFIED_HASH;
 
@@ -378,14 +401,14 @@ final class DiffusionCommitQuery
       $where[] = '('.implode(' OR ', $sql).')';
     }
 
-    if ($this->auditIDs) {
+    if ($this->auditIDs !== null) {
       $where[] = qsprintf(
         $conn_r,
         'audit.id IN (%Ld)',
         $this->auditIDs);
     }
 
-    if ($this->auditorPHIDs) {
+    if ($this->auditorPHIDs !== null) {
       $where[] = qsprintf(
         $conn_r,
         'audit.auditorPHID IN (%Ls)',
@@ -458,10 +481,11 @@ final class DiffusionCommitQuery
     $joins = array();
     $audit_request = new PhabricatorRepositoryAuditRequest();
 
-    if ($this->getAuditRequests()) {
+    if ($this->shouldJoinAudits()) {
       $joins[] = qsprintf(
         $conn_r,
-        'JOIN %T audit ON commit.phid = audit.commitPHID',
+        '%Q %T audit ON commit.phid = audit.commitPHID',
+        ($this->rowsMustHaveAudits() ? 'JOIN' : 'LEFT JOIN'),
         $audit_request->getTableName());
     }
 
