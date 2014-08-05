@@ -187,7 +187,8 @@ final class DiffusionCommitHookEngine extends Phobject {
           'eventPHID' => $event->getPHID(),
           'emailPHIDs' => array_values($this->emailPHIDs),
           'info' => $this->loadCommitInfoForWorker($all_updates),
-        ));
+        ),
+        PhabricatorWorker::PRIORITY_ALERTS);
     }
 
     return 0;
@@ -477,7 +478,12 @@ final class DiffusionCommitHookEngine extends Phobject {
       $ref_flags = 0;
       $dangerous = null;
 
-      if ($ref_old === self::EMPTY_HASH) {
+      if (($ref_old === self::EMPTY_HASH) && ($ref_new === self::EMPTY_HASH)) {
+        // This happens if you try to delete a tag or branch which does not
+        // exist by pushing directly to the ref. Git will warn about it but
+        // allow it. Just call it a delete, without flagging it as dangerous.
+        $ref_flags |= PhabricatorRepositoryPushLog::CHANGEFLAG_DELETE;
+      } else if ($ref_old === self::EMPTY_HASH) {
         $ref_flags |= PhabricatorRepositoryPushLog::CHANGEFLAG_ADD;
       } else if ($ref_new === self::EMPTY_HASH) {
         $ref_flags |= PhabricatorRepositoryPushLog::CHANGEFLAG_DELETE;
@@ -610,8 +616,8 @@ final class DiffusionCommitHookEngine extends Phobject {
         if (!$err) {
           // This hook ran OK, but echo its output in case there was something
           // informative.
-          $console->writeOut("%s", $stdout);
-          $console->writeErr("%s", $stderr);
+          $console->writeOut('%s', $stdout);
+          $console->writeErr('%s', $stderr);
           continue;
         }
 
@@ -688,16 +694,16 @@ final class DiffusionCommitHookEngine extends Phobject {
     foreach (array('old', 'new') as $key) {
       $futures[$key] = $repository->getLocalCommandFuture(
         'heads --template %s',
-        '{node}\1{branches}\2');
+        '{node}\1{branch}\2');
     }
     // Wipe HG_PENDING out of the old environment so we see the pre-commit
     // state of the repository.
     $futures['old']->updateEnv('HG_PENDING', null);
 
     $futures['commits'] = $repository->getLocalCommandFuture(
-      "log --rev %s --rev tip --template %s",
-      hgsprintf('%s', $hg_node),
-      '{node}\1{branches}\2');
+      'log --rev %s --template %s',
+      hgsprintf('%s:%s', $hg_node, 'tip'),
+      '{node}\1{branch}\2');
 
     // Resolve all of the futures now. We don't need the 'commits' future yet,
     // but it simplifies the logic to just get it out of the way.
@@ -760,10 +766,15 @@ final class DiffusionCommitHookEngine extends Phobject {
         // repository that's already full of garbage (strongly discouraged but
         // not as inherently dangerous). These cases should be very uncommon.
 
+        // NOTE: We're only looking for heads on the same branch. The old
+        // tip of the branch may be the branchpoint for other branches, but that
+        // is OK.
+
         $dfutures = array();
         foreach ($old_heads as $old_head) {
           $dfutures[$old_head] = $repository->getLocalCommandFuture(
-            'log --rev %s --template %s',
+            'log --branch %s --rev %s --template %s',
+            $ref,
             hgsprintf('(descendants(%s) and head())', $old_head),
             '{node}\1');
         }
@@ -973,15 +984,8 @@ final class DiffusionCommitHookEngine extends Phobject {
     $commits_lines = array_filter($commits_lines);
     $commit_map = array();
     foreach ($commits_lines as $commit_line) {
-      list($node, $branches_raw) = explode("\1", $commit_line);
-
-      if (!strlen($branches_raw)) {
-        $branches = array('default');
-      } else {
-        $branches = explode(' ', $branches_raw);
-      }
-
-      $commit_map[$node] = $branches;
+      list($node, $branch) = explode("\1", $commit_line);
+      $commit_map[$node] = array($branch);
     }
 
     return $commit_map;
@@ -1147,6 +1151,9 @@ final class DiffusionCommitHookEngine extends Phobject {
       case PhabricatorRepositoryType::REPOSITORY_TYPE_GIT:
         return idx($this->gitCommits, $identifier, array());
       case PhabricatorRepositoryType::REPOSITORY_TYPE_MERCURIAL:
+        // NOTE: This will be "the branch the commit was made to", not
+        // "a list of all branch heads which descend from the commit".
+        // This is consistent with Mercurial, but possibly confusing.
         return idx($this->mercurialCommits, $identifier, array());
       case PhabricatorRepositoryType::REPOSITORY_TYPE_SVN:
         // Subversion doesn't have branches.

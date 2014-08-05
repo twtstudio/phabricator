@@ -276,9 +276,14 @@ final class PhabricatorSettingsPanelEmailAddresses
       ->setUser($user)
       ->addHiddenInput('delete', $email_id)
       ->setTitle(pht("Really delete address '%s'?", $address))
-      ->appendChild(phutil_tag('p', array(), pht(
-        'Are you sure you want to delete this address? You will no '.
-        'longer be able to use it to login.')))
+      ->appendParagraph(
+        pht(
+          'Are you sure you want to delete this address? You will no '.
+            'longer be able to use it to login.'))
+      ->appendParagraph(
+        pht(
+          'Note: Removing an email address from your account will invalidate '.
+          'any outstanding password reset links.'))
       ->addSubmitButton(pht('Delete'))
       ->addCancelButton($uri);
 
@@ -312,7 +317,7 @@ final class PhabricatorSettingsPanelEmailAddresses
     $dialog = id(new AphrontDialogView())
       ->setUser($user)
       ->addHiddenInput('verify', $email_id)
-      ->setTitle(pht("Send Another Verification Email?"))
+      ->setTitle(pht('Send Another Verification Email?'))
       ->appendChild(phutil_tag('p', array(), pht(
         'Send another copy of the verification email to %s?',
         $address)))
@@ -358,11 +363,16 @@ final class PhabricatorSettingsPanelEmailAddresses
     $dialog = id(new AphrontDialogView())
       ->setUser($user)
       ->addHiddenInput('primary', $email_id)
-      ->setTitle(pht("Change primary email address?"))
-      ->appendChild(phutil_tag('p', array(), pht(
-        'If you change your primary address, Phabricator will send'.
-          ' all email to %s.',
-        $address)))
+      ->setTitle(pht('Change primary email address?'))
+      ->appendParagraph(
+        pht(
+          'If you change your primary address, Phabricator will send all '.
+          'email to %s.',
+          $address))
+      ->appendParagraph(
+        pht(
+          'Note: Changing your primary email address will invalidate any '.
+          'outstanding password reset links.'))
       ->addSubmitButton(pht('Change Primary Address'))
       ->addCancelButton($uri);
 

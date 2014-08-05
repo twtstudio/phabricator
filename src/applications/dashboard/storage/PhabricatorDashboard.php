@@ -23,6 +23,16 @@ final class PhabricatorDashboard extends PhabricatorDashboardDAO
       ->attachPanelPHIDs(array());
   }
 
+  public static function copyDashboard(
+    PhabricatorDashboard $dst,
+    PhabricatorDashboard $src) {
+
+    $dst->name = $src->name;
+    $dst->layoutConfig = $src->layoutConfig;
+
+    return $dst;
+  }
+
   public function getConfiguration() {
     return array(
       self::CONFIG_AUX_PHID => true,
@@ -33,7 +43,7 @@ final class PhabricatorDashboard extends PhabricatorDashboardDAO
 
   public function generatePHID() {
     return PhabricatorPHID::generateNewPHID(
-      PhabricatorDashboardPHIDTypeDashboard::TYPECONST);
+      PhabricatorDashboardDashboardPHIDType::TYPECONST);
   }
 
   public function getLayoutConfigObject() {

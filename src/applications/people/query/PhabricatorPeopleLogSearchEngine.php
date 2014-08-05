@@ -3,8 +3,12 @@
 final class PhabricatorPeopleLogSearchEngine
   extends PhabricatorApplicationSearchEngine {
 
+  public function getResultTypeDescription() {
+    return pht('Account Activity');
+  }
+
   public function getApplicationClassName() {
-    return 'PhabricatorApplicationPeople';
+    return 'PhabricatorPeopleApplication';
   }
 
   public function getPageSize(PhabricatorSavedQuery $saved) {
@@ -120,13 +124,13 @@ final class PhabricatorPeopleLogSearchEngine
     $form
       ->appendChild(
         id(new AphrontFormTokenizerControl())
-          ->setDatasource('/typeahead/common/accounts/')
+          ->setDatasource(new PhabricatorPeopleDatasource())
           ->setName('actors')
           ->setLabel(pht('Actors'))
           ->setValue($actor_handles))
       ->appendChild(
         id(new AphrontFormTokenizerControl())
-          ->setDatasource('/typeahead/common/accounts/')
+          ->setDatasource(new PhabricatorPeopleDatasource())
           ->setName('users')
           ->setLabel(pht('Users'))
           ->setValue($user_handles))

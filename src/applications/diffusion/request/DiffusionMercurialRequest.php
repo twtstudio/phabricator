@@ -2,7 +2,7 @@
 
 final class DiffusionMercurialRequest extends DiffusionRequest {
 
-  protected function getSupportsBranches() {
+  public function supportsBranches() {
     return true;
   }
 
@@ -19,7 +19,7 @@ final class DiffusionMercurialRequest extends DiffusionRequest {
       return $this->repository->getDefaultBranch();
     }
 
-    throw new Exception("Unable to determine branch!");
+    throw new Exception('Unable to determine branch!');
   }
 
 }

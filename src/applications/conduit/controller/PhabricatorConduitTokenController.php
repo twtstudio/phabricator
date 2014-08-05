@@ -1,8 +1,5 @@
 <?php
 
-/**
- * @group conduit
- */
 final class PhabricatorConduitTokenController
   extends PhabricatorConduitController {
 
@@ -70,7 +67,7 @@ final class PhabricatorConduitTokenController
       ),
       array(
         'title' => pht('Certificate Install Token'),
-        'device' => true,
       ));
   }
+
 }

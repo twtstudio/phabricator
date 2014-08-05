@@ -10,7 +10,8 @@ final class DifferentialRevision extends DifferentialDAO
     PhabricatorSubscribableInterface,
     PhabricatorCustomFieldInterface,
     PhabricatorApplicationTransactionInterface,
-    PhabricatorDestructableInterface {
+    PhabricatorDestructibleInterface,
+    PhabricatorProjectInterface {
 
   protected $title = '';
   protected $originalTitle;
@@ -52,11 +53,11 @@ final class DifferentialRevision extends DifferentialDAO
   public static function initializeNewRevision(PhabricatorUser $actor) {
     $app = id(new PhabricatorApplicationQuery())
       ->setViewer($actor)
-      ->withClasses(array('PhabricatorApplicationDifferential'))
+      ->withClasses(array('PhabricatorDifferentialApplication'))
       ->executeOne();
 
     $view_policy = $app->getPolicy(
-      DifferentialCapabilityDefaultView::CAPABILITY);
+      DifferentialDefaultViewCapability::CAPABILITY);
 
     return id(new DifferentialRevision())
       ->setViewPolicy($view_policy)
@@ -159,7 +160,7 @@ final class DifferentialRevision extends DifferentialDAO
 
   public function generatePHID() {
     return PhabricatorPHID::generateNewPHID(
-      DifferentialPHIDTypeRevision::TYPECONST);
+      DifferentialRevisionPHIDType::TYPECONST);
   }
 
   public function loadActiveDiff() {
@@ -268,7 +269,6 @@ final class DifferentialRevision extends DifferentialDAO
   }
 
   public function hasAutomaticCapability($capability, PhabricatorUser $user) {
-
     // A revision's author (which effectively means "owner" after we added
     // commandeering) can always view and edit it.
     $author_phid = $this->getAuthorPHID();
@@ -361,6 +361,14 @@ final class DifferentialRevision extends DifferentialDAO
     return $this->getPHID();
   }
 
+  public function getBuildVariables() {
+    return array();
+  }
+
+  public function getAvailableBuildVariables() {
+    return array();
+  }
+
 
 /* -(  PhabricatorSubscribableInterface  )----------------------------------- */
 
@@ -440,7 +448,7 @@ final class DifferentialRevision extends DifferentialDAO
   }
 
 
-/* -(  PhabricatorDestructableInterface  )----------------------------------- */
+/* -(  PhabricatorDestructibleInterface  )----------------------------------- */
 
 
   public function destroyObjectPermanently(

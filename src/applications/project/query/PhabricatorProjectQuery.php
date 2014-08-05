@@ -7,7 +7,9 @@ final class PhabricatorProjectQuery
   private $phids;
   private $memberPHIDs;
   private $slugs;
+  private $phrictionSlugs;
   private $names;
+  private $datasourceQuery;
 
   private $status       = 'status-any';
   const STATUS_ANY      = 'status-any';
@@ -16,6 +18,7 @@ final class PhabricatorProjectQuery
   const STATUS_ACTIVE   = 'status-active';
   const STATUS_ARCHIVED = 'status-archived';
 
+  private $needSlugs;
   private $needMembers;
   private $needWatchers;
   private $needImages;
@@ -40,13 +43,23 @@ final class PhabricatorProjectQuery
     return $this;
   }
 
-  public function withPhrictionSlugs(array $slugs) {
+  public function withSlugs(array $slugs) {
     $this->slugs = $slugs;
+    return $this;
+  }
+
+  public function withPhrictionSlugs(array $slugs) {
+    $this->phrictionSlugs = $slugs;
     return $this;
   }
 
   public function withNames(array $names) {
     $this->names = $names;
+    return $this;
+  }
+
+  public function withDatasourceQuery($string) {
+    $this->datasourceQuery = $string;
     return $this;
   }
 
@@ -62,6 +75,11 @@ final class PhabricatorProjectQuery
 
   public function needImages($need_images) {
     $this->needImages = $need_images;
+    return $this;
+  }
+
+  public function needSlugs($need_slugs) {
+    $this->needSlugs = $need_slugs;
     return $this;
   }
 
@@ -184,6 +202,18 @@ final class PhabricatorProjectQuery
       }
     }
 
+    if ($this->needSlugs) {
+      $slugs = id(new PhabricatorProjectSlug())
+        ->loadAllWhere(
+          'projectPHID IN (%Ls)',
+          mpull($projects, 'getPHID'));
+      $slugs = mgroup($slugs, 'getProjectPHID');
+      foreach ($projects as $project) {
+        $project_slugs = idx($slugs, $project->getPHID(), array());
+        $project->attachSlugs($project_slugs);
+      }
+    }
+
     return $projects;
   }
 
@@ -236,10 +266,22 @@ final class PhabricatorProjectQuery
     }
 
     if ($this->slugs) {
+      $slugs = array();
+      foreach ($this->slugs as $slug) {
+        $slugs[] = rtrim(PhabricatorSlug::normalize($slug), '/');
+      }
+
+      $where[] = qsprintf(
+        $conn_r,
+        'slug.slug IN (%Ls)',
+        $slugs);
+    }
+
+    if ($this->phrictionSlugs) {
       $where[] = qsprintf(
         $conn_r,
         'phrictionSlug IN (%Ls)',
-        $this->slugs);
+        $this->phrictionSlugs);
     }
 
     if ($this->names) {
@@ -255,7 +297,7 @@ final class PhabricatorProjectQuery
   }
 
   private function buildGroupClause($conn_r) {
-    if ($this->memberPHIDs) {
+    if ($this->memberPHIDs || $this->datasourceQuery) {
       return 'GROUP BY p.id';
     } else {
       return $this->buildApplicationSearchGroupClause($conn_r);
@@ -265,7 +307,7 @@ final class PhabricatorProjectQuery
   private function buildJoinClause($conn_r) {
     $joins = array();
 
-    if (!$this->needMembers) {
+    if (!$this->needMembers !== null) {
       $joins[] = qsprintf(
         $conn_r,
         'LEFT JOIN %T vm ON vm.src = p.phid AND vm.type = %d AND vm.dst = %s',
@@ -274,7 +316,7 @@ final class PhabricatorProjectQuery
         $this->getViewer()->getPHID());
     }
 
-    if ($this->memberPHIDs) {
+    if ($this->memberPHIDs !== null) {
       $joins[] = qsprintf(
         $conn_r,
         'JOIN %T e ON e.src = p.phid AND e.type = %d',
@@ -282,14 +324,39 @@ final class PhabricatorProjectQuery
         PhabricatorEdgeConfig::TYPE_PROJ_MEMBER);
     }
 
+    if ($this->slugs !== null) {
+      $joins[] = qsprintf(
+        $conn_r,
+        'JOIN %T slug on slug.projectPHID = p.phid',
+        id(new PhabricatorProjectSlug())->getTableName());
+    }
+
+    if ($this->datasourceQuery !== null) {
+      $tokens = PhabricatorTypeaheadDatasource::tokenizeString(
+        $this->datasourceQuery);
+      if (!$tokens) {
+        throw new PhabricatorEmptyQueryException();
+      }
+
+      $likes = array();
+      foreach ($tokens as $token) {
+        $likes[] = qsprintf($conn_r, 'token.token LIKE %>', $token);
+      }
+
+      $joins[] = qsprintf(
+        $conn_r,
+        'JOIN %T token ON token.projectID = p.id AND (%Q)',
+        PhabricatorProject::TABLE_DATASOURCE_TOKEN,
+        '('.implode(') OR (', $likes).')');
+    }
+
     $joins[] = $this->buildApplicationSearchJoinClause($conn_r);
 
     return implode(' ', $joins);
   }
 
-
   public function getQueryApplicationClass() {
-    return 'PhabricatorApplicationProject';
+    return 'PhabricatorProjectApplication';
   }
 
   protected function getApplicationSearchObjectPHIDColumn() {

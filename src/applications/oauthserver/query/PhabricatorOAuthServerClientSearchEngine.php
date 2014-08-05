@@ -3,8 +3,12 @@
 final class PhabricatorOAuthServerClientSearchEngine
   extends PhabricatorApplicationSearchEngine {
 
+  public function getResultTypeDescription() {
+    return pht('OAuth Clients');
+  }
+
   public function getApplicationClassName() {
-    return 'PhabricatorApplicationOAuthServer';
+    return 'PhabricatorOAuthServerApplication';
   }
 
   public function buildSavedQueryFromRequest(AphrontRequest $request) {
@@ -41,11 +45,10 @@ final class PhabricatorOAuthServerClientSearchEngine
     $form
       ->appendChild(
         id(new AphrontFormTokenizerControl())
-          ->setDatasource('/typeahead/common/users/')
+          ->setDatasource(new PhabricatorPeopleDatasource())
           ->setName('creators')
           ->setLabel(pht('Creators'))
           ->setValue($creator_handles));
-
   }
 
   protected function getURI($path) {
@@ -79,7 +82,6 @@ final class PhabricatorOAuthServerClientSearchEngine
 
     return parent::buildSavedQueryFromBuiltin($query_key);
   }
-
 
   protected function getRequiredHandlePHIDsForResultList(
     array $clients,

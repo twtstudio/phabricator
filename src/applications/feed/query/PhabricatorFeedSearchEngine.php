@@ -3,6 +3,10 @@
 final class PhabricatorFeedSearchEngine
   extends PhabricatorApplicationSearchEngine {
 
+  public function getResultTypeDescription() {
+    return pht('Feed Stories');
+  }
+
   public function buildSavedQueryFromRequest(AphrontRequest $request) {
     $saved = new PhabricatorSavedQuery();
 
@@ -74,13 +78,13 @@ final class PhabricatorFeedSearchEngine
     $form
       ->appendChild(
         id(new AphrontFormTokenizerControl())
-          ->setDatasource('/typeahead/common/users/')
+          ->setDatasource(new PhabricatorPeopleDatasource())
           ->setName('users')
           ->setLabel(pht('Include Users'))
           ->setValue($user_handles))
       ->appendChild(
         id(new AphrontFormTokenizerControl())
-          ->setDatasource('/typeahead/common/projects/')
+          ->setDatasource(new PhabricatorProjectDatasource())
           ->setName('projectPHIDs')
           ->setLabel(pht('Include Projects'))
           ->setValue($proj_handles))
@@ -130,7 +134,13 @@ final class PhabricatorFeedSearchEngine
     array $handles) {
 
     $builder = new PhabricatorFeedBuilder($objects);
-    $builder->setShowHovercards(true);
+
+    if ($this->isPanelContext()) {
+      $builder->setShowHovercards(false);
+    } else {
+      $builder->setShowHovercards(true);
+    }
+
     $builder->setUser($this->requireViewer());
     $view = $builder->buildView();
 

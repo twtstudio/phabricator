@@ -3,8 +3,12 @@
 final class PhabricatorProjectSearchEngine
   extends PhabricatorApplicationSearchEngine {
 
+  public function getResultTypeDescription() {
+    return pht('Projects');
+  }
+
   public function getApplicationClassName() {
-    return 'PhabricatorApplicationProject';
+    return 'PhabricatorProjectApplication';
   }
 
   public function getCustomFieldObject() {
@@ -17,7 +21,9 @@ final class PhabricatorProjectSearchEngine
     $saved->setParameter(
       'memberPHIDs',
       $this->readUsersFromRequest($request, 'members'));
+
     $saved->setParameter('status', $request->getStr('status'));
+    $saved->setParameter('name', $request->getStr('name'));
 
     $this->readCustomFieldsFromRequest($request, $saved);
 
@@ -39,6 +45,11 @@ final class PhabricatorProjectSearchEngine
       $query->withStatus($status);
     }
 
+    $name = $saved->getParameter('name');
+    if (strlen($name)) {
+      $query->withDatasourceQuery($name);
+    }
+
     $this->applyCustomFieldsToQuery($query, $saved);
 
     return $query;
@@ -55,11 +66,17 @@ final class PhabricatorProjectSearchEngine
       ->execute();
 
     $status = $saved->getParameter('status');
+    $name = $saved->getParameter('name');
 
     $form
       ->appendChild(
+        id(new AphrontFormTextControl())
+          ->setName('name')
+          ->setLabel(pht('Name'))
+          ->setValue($name))
+      ->appendChild(
         id(new AphrontFormTokenizerControl())
-          ->setDatasource('/typeahead/common/users/')
+          ->setDatasource(new PhabricatorPeopleDatasource())
           ->setName('members')
           ->setLabel(pht('Members'))
           ->setValue($member_handles))
@@ -91,7 +108,6 @@ final class PhabricatorProjectSearchEngine
   }
 
   public function buildSavedQueryFromBuiltin($query_key) {
-
     $query = $this->newSavedQuery();
     $query->setQueryKey($query_key);
 
@@ -137,11 +153,28 @@ final class PhabricatorProjectSearchEngine
     $list->setUser($viewer);
     foreach ($projects as $project) {
       $id = $project->getID();
+      $workboards_uri = $this->getApplicationURI("board/{$id}/");
+      $members_uri = $this->getApplicationURI("members/{$id}/");
+      $workboards_url = phutil_tag(
+        'a',
+        array(
+          'href' => $workboards_uri
+        ),
+        pht('Workboards'));
+
+      $members_url = phutil_tag(
+        'a',
+        array(
+          'href' => $members_uri
+        ),
+        pht('Members'));
 
       $item = id(new PHUIObjectItemView())
         ->setHeader($project->getName())
         ->setHref($this->getApplicationURI("view/{$id}/"))
-        ->setImageURI($project->getProfileImageURI());
+        ->setImageURI($project->getProfileImageURI())
+        ->addAttribute($workboards_url)
+        ->addAttribute($members_url);
 
       if ($project->getStatus() == PhabricatorProjectStatus::STATUS_ARCHIVED) {
         $item->addIcon('delete-grey', pht('Archived'));

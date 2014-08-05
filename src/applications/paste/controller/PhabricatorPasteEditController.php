@@ -1,8 +1,5 @@
 <?php
 
-/**
- * @group paste
- */
 final class PhabricatorPasteEditController extends PhabricatorPasteController {
 
   private $id;
@@ -10,7 +7,6 @@ final class PhabricatorPasteEditController extends PhabricatorPasteController {
   public function willProcessRequest(array $data) {
     $this->id = idx($data, 'id');
   }
-
 
   public function processRequest() {
     $request = $this->getRequest();
@@ -75,6 +71,15 @@ final class PhabricatorPasteEditController extends PhabricatorPasteController {
     }
     $v_policy = $paste->getViewPolicy();
 
+    if ($is_create) {
+      $v_projects = array();
+    } else {
+      $v_projects = PhabricatorEdgeQuery::loadDestinationPHIDs(
+        $paste->getPHID(),
+        PhabricatorProjectObjectHasProjectEdgeType::EDGECONST);
+      $v_projects = array_reverse($v_projects);
+    }
+
     if ($request->isFormPost()) {
       $xactions = array();
 
@@ -89,6 +94,7 @@ final class PhabricatorPasteEditController extends PhabricatorPasteController {
       $v_title = $request->getStr('title');
       $v_language = $request->getStr('language');
       $v_policy = $request->getStr('can_view');
+      $v_projects = $request->getArr('projects');
 
       // NOTE: The author is the only editor and can always view the paste,
       // so it's impossible for them to choose an invalid policy.
@@ -114,6 +120,13 @@ final class PhabricatorPasteEditController extends PhabricatorPasteController {
         $xactions[] = id(new PhabricatorPasteTransaction())
           ->setTransactionType(PhabricatorTransactions::TYPE_VIEW_POLICY)
           ->setNewValue($v_policy);
+
+        $proj_edge_type = PhabricatorProjectObjectHasProjectEdgeType::EDGECONST;
+        $xactions[] = id(new PhabricatorPasteTransaction())
+          ->setTransactionType(PhabricatorTransactions::TYPE_EDGE)
+          ->setMetadataValue('edge:type', $proj_edge_type)
+          ->setNewValue(array('=' => array_fuse($v_projects)));
+
         $editor = id(new PhabricatorPasteEditor())
           ->setActor($user)
           ->setContentSourceFromRequest($request)
@@ -161,6 +174,20 @@ final class PhabricatorPasteEditController extends PhabricatorPasteController {
         ->setPolicies($policies)
         ->setName('can_view'));
 
+
+    if ($v_projects) {
+      $project_handles = $this->loadViewerHandles($v_projects);
+    } else {
+      $project_handles = array();
+    }
+
+    $form->appendChild(
+      id(new AphrontFormTokenizerControl())
+        ->setLabel(pht('Projects'))
+        ->setName('projects')
+        ->setValue($project_handles)
+        ->setDatasource(new PhabricatorProjectDatasource()));
+
     $form
       ->appendChild(
         id(new AphrontFormTextAreaControl())
@@ -204,7 +231,6 @@ final class PhabricatorPasteEditController extends PhabricatorPasteController {
       ),
       array(
         'title' => $title,
-        'device' => true,
       ));
   }
 

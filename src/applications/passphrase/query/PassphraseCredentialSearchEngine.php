@@ -3,8 +3,12 @@
 final class PassphraseCredentialSearchEngine
   extends PhabricatorApplicationSearchEngine {
 
+  public function getResultTypeDescription() {
+    return pht('Passphrase Credentials');
+  }
+
   public function getApplicationClassName() {
-    return 'PhabricatorApplicationPassphrase';
+    return 'PhabricatorPassphraseApplication';
   }
 
   public function buildSavedQueryFromRequest(AphrontRequest $request) {
@@ -43,7 +47,6 @@ final class PassphraseCredentialSearchEngine
             'false' => pht('Show Only Active Credentials'),
             'true' => pht('Show Only Destroyed Credentials'),
           )));
-
   }
 
   protected function getURI($path) {
@@ -51,16 +54,13 @@ final class PassphraseCredentialSearchEngine
   }
 
   public function getBuiltinQueryNames() {
-    $names = array(
+    return array(
       'active' => pht('Active Credentials'),
       'all' => pht('All Credentials'),
     );
-
-    return $names;
   }
 
   public function buildSavedQueryFromBuiltin($query_key) {
-
     $query = $this->newSavedQuery();
     $query->setQueryKey($query_key);
 
@@ -111,6 +111,5 @@ final class PassphraseCredentialSearchEngine
 
     return $list;
   }
-
 
 }

@@ -3,8 +3,12 @@
 final class PonderQuestionSearchEngine
   extends PhabricatorApplicationSearchEngine {
 
+  public function getResultTypeDescription() {
+    return pht('Ponder Questions');
+  }
+
   public function getApplicationClassName() {
-    return 'PhabricatorApplicationPonder';
+    return 'PhabricatorPonderApplication';
   }
 
   public function buildSavedQueryFromRequest(AphrontRequest $request) {
@@ -69,13 +73,13 @@ final class PonderQuestionSearchEngine
     $form
       ->appendChild(
         id(new AphrontFormTokenizerControl())
-          ->setDatasource('/typeahead/common/users/')
+          ->setDatasource(new PhabricatorPeopleDatasource())
           ->setName('authors')
           ->setLabel(pht('Authors'))
           ->setValue(array_select_keys($handles, $author_phids)))
       ->appendChild(
         id(new AphrontFormTokenizerControl())
-          ->setDatasource('/typeahead/common/users/')
+          ->setDatasource(new PhabricatorPeopleDatasource())
           ->setName('answerers')
           ->setLabel(pht('Answered By'))
           ->setValue(array_select_keys($handles, $answerer_phids)))

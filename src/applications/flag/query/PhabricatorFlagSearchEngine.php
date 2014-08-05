@@ -3,8 +3,12 @@
 final class PhabricatorFlagSearchEngine
   extends PhabricatorApplicationSearchEngine {
 
+  public function getResultTypeDescription() {
+    return pht('Flags');
+  }
+
   public function getApplicationClassName() {
-    return 'PhabricatorApplicationFlags';
+    return 'PhabricatorFlagsApplication';
   }
 
   public function buildSavedQueryFromRequest(AphrontRequest $request) {

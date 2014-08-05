@@ -3,6 +3,38 @@
 final class PhabricatorDashboardTransactionEditor
   extends PhabricatorApplicationTransactionEditor {
 
+  public static function addPanelToDashboard(
+    PhabricatorUser $actor,
+    PhabricatorContentSource $content_source,
+    PhabricatorDashboardPanel $panel,
+    PhabricatorDashboard $dashboard,
+    $column) {
+
+    $xactions = array();
+    $xactions[] = id(new PhabricatorDashboardTransaction())
+      ->setTransactionType(PhabricatorTransactions::TYPE_EDGE)
+      ->setMetadataValue(
+        'edge:type',
+        PhabricatorEdgeConfig::TYPE_DASHBOARD_HAS_PANEL)
+      ->setNewValue(
+        array(
+          '+' => array(
+            $panel->getPHID() => $panel->getPHID(),
+          ),
+        ));
+
+    $layout_config = $dashboard->getLayoutConfigObject();
+    $layout_config->setPanelLocation($column, $panel->getPHID());
+    $dashboard->setLayoutConfigFromObject($layout_config);
+
+    $editor = id(new PhabricatorDashboardTransactionEditor())
+      ->setActor($actor)
+      ->setContentSource($content_source)
+      ->setContinueOnMissingFields(true)
+      ->setContinueOnNoEffect(true)
+      ->applyTransactions($dashboard, $xactions);
+  }
+
   public function getTransactionTypes() {
     $types = parent::getTransactionTypes();
 
@@ -89,6 +121,8 @@ final class PhabricatorDashboardTransactionEditor
     switch ($xaction->getTransactionType()) {
       case PhabricatorDashboardTransaction::TYPE_NAME:
       case PhabricatorDashboardTransaction::TYPE_LAYOUT_MODE:
+      case PhabricatorTransactions::TYPE_VIEW_POLICY:
+      case PhabricatorTransactions::TYPE_EDIT_POLICY:
         return;
       case PhabricatorTransactions::TYPE_EDGE:
         return;

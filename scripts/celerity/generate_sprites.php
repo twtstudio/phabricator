@@ -27,16 +27,13 @@ $webroot = Filesystem::readablePath($webroot);
 $generator = new CeleritySpriteGenerator();
 
 $sheets = array(
-  'remarkup' => $generator->buildRemarkupSheet(),
   'menu' => $generator->buildMenuSheet(),
   'apps' => $generator->buildAppsSheet(),
-  'actions' => $generator->buildActionsSheet(),
   'minicons' => $generator->buildMiniconsSheet(),
   'conpherence' => $generator->buildConpherenceSheet(),
   'apps-large' => $generator->buildAppsLargeSheet(),
   'payments' => $generator->buildPaymentsSheet(),
   'tokens' => $generator->buildTokenSheet(),
-  'buttonbar' => $generator->buildButtonBarSheet(),
   'docs' => $generator->buildDocsSheet(),
   'gradient' => $generator->buildGradientSheet(),
   'main-header' => $generator->buildMainHeaderSheet(),

@@ -6,7 +6,7 @@ final class DifferentialDiff
     PhabricatorPolicyInterface,
     HarbormasterBuildableInterface,
     PhabricatorApplicationTransactionInterface,
-    PhabricatorDestructableInterface {
+    PhabricatorDestructibleInterface {
 
   protected $revisionID;
   protected $authorPHID;
@@ -47,7 +47,7 @@ final class DifferentialDiff
 
   public function generatePHID() {
     return PhabricatorPHID::generateNewPHID(
-      DifferentialPHIDTypeDiff::TYPECONST);
+      DifferentialDiffPHIDType::TYPECONST);
   }
 
   public function addUnsavedChangeset(DifferentialChangeset $changeset) {
@@ -132,7 +132,7 @@ final class DifferentialDiff
       $hunks = $change->getHunks();
       if ($hunks) {
         foreach ($hunks as $hunk) {
-          $dhunk = new DifferentialHunk();
+          $dhunk = new DifferentialHunkModern();
           $dhunk->setOldOffset($hunk->getOldOffset());
           $dhunk->setOldLen($hunk->getOldLength());
           $dhunk->setNewOffset($hunk->getNewOffset());
@@ -333,6 +333,38 @@ final class DifferentialDiff
     return null;
   }
 
+  public function getBuildVariables() {
+    $results = array();
+
+    $results['buildable.diff'] = $this->getID();
+    $revision = $this->getRevision();
+    $results['buildable.revision'] = $revision->getID();
+    $repo = $revision->getRepository();
+
+    if ($repo) {
+      $results['repository.callsign'] = $repo->getCallsign();
+      $results['repository.vcs'] = $repo->getVersionControlSystem();
+      $results['repository.uri'] = $repo->getPublicCloneURI();
+    }
+
+    return $results;
+  }
+
+  public function getAvailableBuildVariables() {
+    return array(
+      'buildable.diff' =>
+        pht('The differential diff ID, if applicable.'),
+      'buildable.revision' =>
+        pht('The differential revision ID, if applicable.'),
+      'repository.callsign' =>
+        pht('The callsign of the repository in Phabricator.'),
+      'repository.vcs' =>
+        pht('The version control system, either "svn", "hg" or "git".'),
+      'repository.uri' =>
+        pht('The URI to clone or checkout the repository from.'),
+    );
+  }
+
 
 /* -(  PhabricatorApplicationTransactionInterface  )------------------------- */
 
@@ -360,7 +392,7 @@ final class DifferentialDiff
   }
 
 
-/* -(  PhabricatorDestructableInterface  )----------------------------------- */
+/* -(  PhabricatorDestructibleInterface  )----------------------------------- */
 
 
   public function destroyObjectPermanently(

@@ -148,7 +148,7 @@ class PhabricatorApplicationTransactionView extends AphrontView {
 
   public function render() {
     if (!$this->getObjectPHID()) {
-      throw new Exception("Call setObjectPHID() before render()!");
+      throw new Exception('Call setObjectPHID() before render()!');
     }
 
     $view = new PHUITimelineView();
@@ -159,17 +159,7 @@ class PhabricatorApplicationTransactionView extends AphrontView {
     }
 
     if ($this->getShowEditActions()) {
-      $list_id = celerity_generate_unique_node_id();
-
-      $view->setID($list_id);
-
-      Javelin::initBehavior(
-        'phabricator-transaction-list',
-        array(
-          'listID'          => $list_id,
-          'objectPHID'      => $this->getObjectPHID(),
-          'nextAnchor'      => $this->anchorOffset + count($events),
-        ));
+      Javelin::initBehavior('phabricator-transaction-list');
     }
 
     return $view->render();
@@ -261,6 +251,7 @@ class PhabricatorApplicationTransactionView extends AphrontView {
         return javelin_tag(
           'span',
           array(
+            'class' => 'transaction-comment',
             'sigil' => 'transaction-comment',
             'meta'  => array('phid' => $comment->getTransactionPHID()),
           ),

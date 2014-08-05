@@ -3,8 +3,12 @@
 final class PhabricatorRepositorySearchEngine
   extends PhabricatorApplicationSearchEngine {
 
+  public function getResultTypeDescription() {
+    return pht('Repositories');
+  }
+
   public function getApplicationClassName() {
-    return 'PhabricatorApplicationDiffusion';
+    return 'PhabricatorDiffusionApplication';
   }
 
   public function buildSavedQueryFromRequest(AphrontRequest $request) {
@@ -102,7 +106,7 @@ final class PhabricatorRepositorySearchEngine
           ->setValue($name))
       ->appendChild(
         id(new AphrontFormTokenizerControl())
-          ->setDatasource('/typeahead/common/projects/')
+          ->setDatasource(new PhabricatorProjectDatasource())
           ->setName('anyProjects')
           ->setLabel(pht('In Any Project'))
           ->setValue($any_project_handles))
@@ -234,7 +238,6 @@ final class PhabricatorRepositorySearchEngine
     $viewer = $this->requireViewer();;
 
     $list = new PHUIObjectItemListView();
-    $list->setCards(true);
     foreach ($repositories as $repository) {
       $id = $repository->getID();
 
@@ -283,7 +286,8 @@ final class PhabricatorRepositorySearchEngine
         $repository->getProjectPHIDs());
       if ($project_handles) {
         $item->addAttribute(
-          id(new ManiphestTaskProjectsView())
+          id(new PHUIHandleTagListView())
+            ->setSlim(true)
             ->setHandles($project_handles));
       }
 

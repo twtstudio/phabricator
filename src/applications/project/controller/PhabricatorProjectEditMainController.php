@@ -67,7 +67,6 @@ final class PhabricatorProjectEditMainController
       ),
       array(
         'title' => $project->getName(),
-        'device' => true,
       ));
   }
 
@@ -137,6 +136,12 @@ final class PhabricatorProjectEditMainController
     $descriptions = PhabricatorPolicyQuery::renderPolicyDescriptions(
       $viewer,
       $project);
+
+    $this->loadHandles(array($project->getPHID()));
+
+    $view->addProperty(
+      pht('Looks Like'),
+      $this->getHandle($project->getPHID())->renderTag());
 
     $view->addProperty(
       pht('Visible To'),

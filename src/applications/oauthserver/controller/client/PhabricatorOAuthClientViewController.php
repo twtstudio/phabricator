@@ -1,7 +1,7 @@
 <?php
 
 final class PhabricatorOAuthClientViewController
-  extends PhabricatorOAuthClientBaseController {
+  extends PhabricatorOAuthClientController {
 
   public function processRequest() {
     $request = $this->getRequest();
@@ -34,7 +34,6 @@ final class PhabricatorOAuthClientViewController
       ),
       array(
         'title' => pht('OAuth Application: %s', $client->getName()),
-        'device' => true,
       ));
   }
 

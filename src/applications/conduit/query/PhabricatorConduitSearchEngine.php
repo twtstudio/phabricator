@@ -3,8 +3,12 @@
 final class PhabricatorConduitSearchEngine
   extends PhabricatorApplicationSearchEngine {
 
+  public function getResultTypeDescription() {
+    return pht('Conduit Methods');
+  }
+
   public function getApplicationClassName() {
-    return 'PhabricatorApplicationConduit';
+    return 'PhabricatorConduitApplication';
   }
 
   public function getPageSize(PhabricatorSavedQuery $saved) {
@@ -102,8 +106,6 @@ final class PhabricatorConduitSearchEngine
                 'Show old methods which will be deleted in a future '.
                 'version of Phabricator.')),
             $is_deprecated));
-
-
   }
 
   protected function getURI($path) {
@@ -111,16 +113,13 @@ final class PhabricatorConduitSearchEngine
   }
 
   public function getBuiltinQueryNames() {
-    $names = array(
+    return array(
       'modern' => pht('Modern Methods'),
       'all'    => pht('All Methods'),
     );
-
-    return $names;
   }
 
   public function buildSavedQueryFromBuiltin($query_key) {
-
     $query = $this->newSavedQuery();
     $query->setQueryKey($query_key);
 

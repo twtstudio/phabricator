@@ -1,8 +1,5 @@
 <?php
 
-/**
- * @group phame
- */
 final class PhamePostViewController extends PhameController {
 
   private $id;
@@ -80,7 +77,6 @@ final class PhamePostViewController extends PhameController {
       $nav,
       array(
         'title' => $post->getTitle(),
-        'device' => true,
       ));
   }
 
@@ -204,4 +200,5 @@ final class PhamePostViewController extends PhameController {
 
     return $properties;
   }
+
 }

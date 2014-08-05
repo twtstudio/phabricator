@@ -1,10 +1,13 @@
 <?php
 
-final class HeraldRuleSearchEngine
-  extends PhabricatorApplicationSearchEngine {
+final class HeraldRuleSearchEngine extends PhabricatorApplicationSearchEngine {
+
+  public function getResultTypeDescription() {
+    return pht('Herald Rules');
+  }
 
   public function getApplicationClassName() {
-    return 'PhabricatorApplicationHerald';
+    return 'PhabricatorHeraldApplication';
   }
 
   public function buildSavedQueryFromRequest(AphrontRequest $request) {
@@ -67,7 +70,7 @@ final class HeraldRuleSearchEngine
     $form
       ->appendChild(
         id(new AphrontFormTokenizerControl())
-          ->setDatasource('/typeahead/common/users/')
+          ->setDatasource(new PhabricatorPeopleDatasource())
           ->setName('authors')
           ->setLabel(pht('Authors'))
           ->setValue($author_handles))
@@ -114,7 +117,6 @@ final class HeraldRuleSearchEngine
   }
 
   public function buildSavedQueryFromBuiltin($query_key) {
-
     $query = $this->newSavedQuery();
     $query->setQueryKey($query_key);
 
@@ -159,6 +161,7 @@ final class HeraldRuleSearchEngine
   protected function getRequiredHandlePHIDsForResultList(
     array $rules,
     PhabricatorSavedQuery $query) {
+
     return mpull($rules, 'getAuthorPHID');
   }
 
@@ -173,8 +176,7 @@ final class HeraldRuleSearchEngine
     $content_type_map = HeraldAdapter::getEnabledAdapterMap($viewer);
 
     $list = id(new PHUIObjectItemListView())
-      ->setUser($viewer)
-      ->setCards(true);
+      ->setUser($viewer);
     foreach ($rules as $rule) {
       $id = $rule->getID();
 

@@ -123,7 +123,7 @@ final class PhabricatorRepositoryGraphCache {
 
       // Walk past the parent information.
       $parent_id = null;
-      for ($ii = 0;            ; ++$ii) {
+      for ($ii = 0;; ++$ii) {
         if ($items[$ii] === null) {
           break;
         }
@@ -276,7 +276,7 @@ final class PhabricatorRepositoryGraphCache {
 
 
   /**
-   * Rebuild a cache bucket, amending existing data if avialable.
+   * Rebuild a cache bucket, amending existing data if available.
    *
    * @param   int     Bucket key, from @{method:getBucketKey}.
    * @param   array   Existing bucket data.

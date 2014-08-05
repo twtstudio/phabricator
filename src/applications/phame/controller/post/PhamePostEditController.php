@@ -1,10 +1,6 @@
 <?php
 
-/**
- * @group phame
- */
-final class PhamePostEditController
-  extends PhameController {
+final class PhamePostEditController extends PhameController {
 
   private $id;
 
@@ -185,7 +181,6 @@ final class PhamePostEditController
       $nav,
       array(
         'title' => $page_title,
-        'device' => true,
       ));
   }
 

@@ -28,6 +28,11 @@ final class PhabricatorSettingsPanelExternalAccounts
       ->setViewer($viewer)
       ->withUserPHIDs(array($viewer->getPHID()))
       ->needImages(true)
+      ->requireCapabilities(
+        array(
+          PhabricatorPolicyCapability::CAN_VIEW,
+          PhabricatorPolicyCapability::CAN_EDIT,
+        ))
       ->execute();
 
     $linked_head = id(new PHUIHeaderView())
@@ -35,7 +40,6 @@ final class PhabricatorSettingsPanelExternalAccounts
 
     $linked = id(new PHUIObjectItemListView())
       ->setUser($viewer)
-      ->setCards(true)
       ->setFlush(true)
       ->setNoDataString(pht('You have no linked accounts.'));
 
@@ -99,7 +103,6 @@ final class PhabricatorSettingsPanelExternalAccounts
 
     $linkable = id(new PHUIObjectItemListView())
       ->setUser($viewer)
-      ->setCards(true)
       ->setFlush(true)
       ->setNoDataString(
         pht('Your account is linked with all available providers.'));

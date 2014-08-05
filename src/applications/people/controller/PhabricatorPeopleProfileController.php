@@ -131,6 +131,7 @@ final class PhabricatorPeopleProfileController
 
     $crumbs = $this->buildApplicationCrumbs();
     $crumbs->addTextCrumb($user->getUsername());
+    $crumbs->setActionList($actions);
     $feed = $this->renderUserFeed($user);
     $calendar = $this->renderUserCalendar($user);
     $activity = phutil_tag(
@@ -155,7 +156,6 @@ final class PhabricatorPeopleProfileController
       ),
       array(
         'title' => $user->getUsername(),
-        'device' => true,
       ));
   }
 

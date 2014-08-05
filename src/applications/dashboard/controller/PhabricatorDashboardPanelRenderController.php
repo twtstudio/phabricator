@@ -5,6 +5,10 @@ final class PhabricatorDashboardPanelRenderController
 
   private $id;
 
+  public function shouldAllowPublic() {
+    return true;
+  }
+
   public function willProcessRequest(array $data) {
     $this->id = $data['id'];
   }
@@ -54,14 +58,17 @@ final class PhabricatorDashboardPanelRenderController
       ->addTextCrumb($panel->getMonogram(), '/'.$panel->getMonogram())
       ->addTextCrumb(pht('Standalone View'));
 
+    $view = id(new PHUIBoxView())
+      ->addClass('dashboard-view')
+      ->appendChild($rendered_panel);
+
     return $this->buildApplicationPage(
       array(
         $crumbs,
-        $rendered_panel,
+        $view,
       ),
       array(
         'title' => array(pht('Panel'), $panel->getName()),
-        'device' => true,
       ));
   }
 

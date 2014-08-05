@@ -40,7 +40,6 @@ final class PhrictionHistoryController
     $handles = $this->loadViewerHandles($author_phids);
 
     $list = new PHUIObjectItemListView();
-    $list->setCards(true);
     $list->setFlush(true);
 
     foreach ($history as $content) {
@@ -84,7 +83,7 @@ final class PhrictionHistoryController
           $color = 'green';
           break;
         default:
-          throw new Exception("Unknown change type!");
+          throw new Exception('Unknown change type!');
           break;
       }
 
@@ -108,25 +107,27 @@ final class PhrictionHistoryController
 
       if ($vs_previous) {
         $item->addIcon(
-          'arrow_left',
+          'fa-reply',
           pht('Show Change'),
           array(
             'href' => $vs_previous,
           ));
       } else {
-        $item->addIcon('arrow_left-grey',
+        $item->addIcon(
+          'fa-reply grey',
           phutil_tag('em', array(), pht('No previous change')));
       }
 
       if ($vs_head) {
         $item->addIcon(
-          'merge',
+          'fa-reply-all',
           pht('Show Later Changes'),
           array(
             'href' => $vs_head,
           ));
       } else {
-        $item->addIcon('merge-grey',
+        $item->addIcon(
+          'fa-reply-all grey',
           phutil_tag('em', array(), pht('No later changes')));
       }
 
@@ -161,7 +162,6 @@ final class PhrictionHistoryController
       ),
       array(
         'title'     => pht('Document History'),
-        'device'    => true,
       ));
 
   }

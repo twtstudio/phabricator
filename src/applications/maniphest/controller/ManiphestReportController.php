@@ -58,6 +58,7 @@ final class ManiphestReportController extends ManiphestController {
       $nav,
       array(
         'title' => pht('Maniphest Reports'),
+        'device' => false,
       ));
   }
 
@@ -82,9 +83,10 @@ final class ManiphestReportController extends ManiphestController {
       $joins = qsprintf(
         $conn,
         'JOIN %T t ON x.objectPHID = t.phid
-          JOIN %T p ON p.taskPHID = t.phid AND p.projectPHID = %s',
+          JOIN %T p ON p.src = t.phid AND p.type = %d AND p.dst = %s',
         id(new ManiphestTask())->getTableName(),
-        id(new ManiphestTaskProject())->getTableName(),
+        PhabricatorEdgeConfig::TABLE_NAME_EDGE,
+        PhabricatorProjectObjectHasProjectEdgeType::EDGECONST,
         $project_phid);
     }
 
@@ -245,22 +247,30 @@ final class ManiphestReportController extends ManiphestController {
 
     if ($handle) {
       $inst = pht(
-        "NOTE: This table reflects tasks currently in ".
-        "the project. If a task was opened in the past but added to ".
-        "the project recently, it is counted on the day it was ".
-        "opened, not the day it was categorized. If a task was part ".
-        "of this project in the past but no longer is, it is not ".
-        "counted at all.");
-      $header = pht("Task Burn Rate for Project %s", $handle->renderLink());
+        'NOTE: This table reflects tasks currently in '.
+        'the project. If a task was opened in the past but added to '.
+        'the project recently, it is counted on the day it was '.
+        'opened, not the day it was categorized. If a task was part '.
+        'of this project in the past but no longer is, it is not '.
+        'counted at all.');
+      $header = pht('Task Burn Rate for Project %s', $handle->renderLink());
       $caption = phutil_tag('p', array(), $inst);
     } else {
-      $header = pht("Task Burn Rate for All Tasks");
+      $header = pht('Task Burn Rate for All Tasks');
       $caption = null;
     }
 
-    $panel = new AphrontPanelView();
-    $panel->setHeader($header);
-    $panel->setCaption($caption);
+    if ($caption) {
+      $caption = id(new AphrontErrorView())
+        ->appendChild($caption)
+        ->setSeverity(AphrontErrorView::SEVERITY_NOTICE);
+    }
+
+    $panel = new PHUIObjectBoxView();
+    $panel->setHeaderText($header);
+    if ($caption) {
+      $panel->setErrorView($caption);
+    }
     $panel->appendChild($table);
 
     $tokens = array();
@@ -275,8 +285,9 @@ final class ManiphestReportController extends ManiphestController {
       'div',
       array(
         'id' => $id,
-        'style' => 'border: 1px solid #6f6f6f; '.
-                   'margin: 1em 2em; '.
+        'style' => 'border: 1px solid #BFCFDA; '.
+                   'background-color: #fff; '.
+                   'margin: 8px 16px; '.
                    'height: 400px; ',
       ),
       '');
@@ -310,7 +321,7 @@ final class ManiphestReportController extends ManiphestController {
       ->setUser($user)
       ->appendChild(
         id(new AphrontFormTokenizerControl())
-          ->setDatasource('/typeahead/common/searchproject/')
+          ->setDatasource(new PhabricatorProjectDatasource())
           ->setLabel(pht('Project'))
           ->setLimit(1)
           ->setName('set_project')
@@ -628,8 +639,8 @@ final class ManiphestReportController extends ManiphestController {
         'closed',
       ));
 
-    $panel = new AphrontPanelView();
-    $panel->setHeader($header);
+    $panel = new PHUIObjectBoxView();
+    $panel->setHeaderText($header);
     $panel->appendChild($table);
 
     $tokens = array();

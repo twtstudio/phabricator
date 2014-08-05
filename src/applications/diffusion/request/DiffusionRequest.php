@@ -28,7 +28,7 @@ abstract class DiffusionRequest {
   private $user;
   private $branchObject = false;
 
-  abstract protected function getSupportsBranches();
+  abstract public function supportsBranches();
   abstract protected function isStableCommit($symbol);
 
   protected function didInitialize() {
@@ -98,7 +98,7 @@ abstract class DiffusionRequest {
     $callsign = phutil_unescape_uri_path_component(idx($data, 'callsign'));
     $object = self::newFromCallsign($callsign, $request->getUser());
 
-    $use_branches = $object->getSupportsBranches();
+    $use_branches = $object->supportsBranches();
     $parsed = self::parseRequestBlob(idx($data, 'dblob'), $use_branches);
 
     $object->setUser($request->getUser());
@@ -163,7 +163,7 @@ abstract class DiffusionRequest {
     $class = idx($map, $repository->getVersionControlSystem());
 
     if (!$class) {
-      throw new Exception("Unknown version control system!");
+      throw new Exception('Unknown version control system!');
     }
 
     $object = new $class();
@@ -188,7 +188,7 @@ abstract class DiffusionRequest {
     $this->initFromConduit = idx($data, 'initFromConduit', true);
 
     $this->symbolicCommit = idx($data, 'commit');
-    if ($this->getSupportsBranches()) {
+    if ($this->supportsBranches()) {
       $this->branch = idx($data, 'branch');
     }
 
@@ -385,7 +385,7 @@ abstract class DiffusionRequest {
       $commit = id(new PhabricatorRepositoryCommit())->loadOneWhere(
         'repositoryID = %d AND commitIdentifier = %s',
         $repository->getID(),
-        $this->getCommit());
+        $this->getStableCommit());
       if ($commit) {
         $commit->attachRepository($repository);
       }
@@ -665,7 +665,7 @@ abstract class DiffusionRequest {
       // Prevent any hyjinx since we're ultimately shipping this to the
       // filesystem under a lot of workflows.
       if ($part == '..') {
-        throw new Exception("Invalid path URI.");
+        throw new Exception('Invalid path URI.');
       }
     }
 
@@ -691,8 +691,8 @@ abstract class DiffusionRequest {
     $host = php_uname('n');
     $callsign = $this->getRepository()->getCallsign();
     throw new DiffusionSetupException(
-      "The clone of this repository ('{$callsign}') on the local machine " .
-      "('{$host}') could not be read. Ensure that the repository is in a " .
+      "The clone of this repository ('{$callsign}') on the local machine ".
+      "('{$host}') could not be read. Ensure that the repository is in a ".
       "location where the web server has read permissions.");
   }
 
@@ -712,7 +712,7 @@ abstract class DiffusionRequest {
     if ($this->symbolicCommit) {
       $ref = $this->symbolicCommit;
     } else {
-      if ($this->getSupportsBranches()) {
+      if ($this->supportsBranches()) {
         $ref = $this->getResolvableBranchName($this->getBranch());
       } else {
         $ref = 'HEAD';

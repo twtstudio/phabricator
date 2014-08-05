@@ -3,8 +3,12 @@
 final class PhabricatorFileSearchEngine
   extends PhabricatorApplicationSearchEngine {
 
+  public function getResultTypeDescription() {
+    return pht('Files');
+  }
+
   public function getApplicationClassName() {
-    return 'PhabricatorApplicationFiles';
+    return 'PhabricatorFilesApplication';
   }
 
   public function buildSavedQueryFromRequest(AphrontRequest $request) {
@@ -57,7 +61,7 @@ final class PhabricatorFileSearchEngine
     $form
       ->appendChild(
         id(new AphrontFormTokenizerControl())
-          ->setDatasource('/typeahead/common/users/')
+          ->setDatasource(new PhabricatorPeopleDatasource())
           ->setName('authors')
           ->setLabel(pht('Authors'))
           ->setValue($author_handles))
@@ -90,14 +94,13 @@ final class PhabricatorFileSearchEngine
     }
 
     $names += array(
-      'all'     => pht('All'),
+      'all' => pht('All'),
     );
 
     return $names;
   }
 
   public function buildSavedQueryFromBuiltin($query_key) {
-
     $query = $this->newSavedQuery();
     $query->setQueryKey($query_key);
 
@@ -162,7 +165,7 @@ final class PhabricatorFileSearchEngine
         ->setHeader($name)
         ->setHref($file_uri)
         ->addAttribute($uploaded)
-        ->addIcon('none', phabricator_format_bytes($file->getByteSize()));
+        ->addIcon('none', phutil_format_bytes($file->getByteSize()));
 
       $ttl = $file->getTTL();
       if ($ttl !== null) {

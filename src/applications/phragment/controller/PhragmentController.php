@@ -94,7 +94,7 @@ abstract class PhragmentController extends PhabricatorController {
       $fragment,
       PhabricatorPolicyCapability::CAN_EDIT);
 
-    $zip_uri = $this->getApplicationURI("zip/".$fragment->getPath());
+    $zip_uri = $this->getApplicationURI('zip/'.$fragment->getPath());
 
     $actions = id(new PhabricatorActionListView())
       ->setUser($viewer)
@@ -116,7 +116,7 @@ abstract class PhragmentController extends PhabricatorController {
       $actions->addAction(
         id(new PhabricatorActionView())
           ->setName(pht('Update Fragment'))
-          ->setHref($this->getApplicationURI("update/".$fragment->getPath()))
+          ->setHref($this->getApplicationURI('update/'.$fragment->getPath()))
           ->setDisabled(!$can_edit)
           ->setWorkflow(!$can_edit)
           ->setIcon('fa-refresh'));
@@ -124,7 +124,7 @@ abstract class PhragmentController extends PhabricatorController {
       $actions->addAction(
         id(new PhabricatorActionView())
           ->setName(pht('Convert to File'))
-          ->setHref($this->getApplicationURI("update/".$fragment->getPath()))
+          ->setHref($this->getApplicationURI('update/'.$fragment->getPath()))
           ->setDisabled(!$can_edit)
           ->setWorkflow(!$can_edit)
           ->setIcon('fa-file-o'));
@@ -132,7 +132,7 @@ abstract class PhragmentController extends PhabricatorController {
     $actions->addAction(
       id(new PhabricatorActionView())
         ->setName(pht('Set Fragment Policies'))
-        ->setHref($this->getApplicationURI("policy/".$fragment->getPath()))
+        ->setHref($this->getApplicationURI('policy/'.$fragment->getPath()))
         ->setDisabled(!$can_edit)
         ->setWorkflow(!$can_edit)
         ->setIcon('fa-asterisk'));
@@ -140,20 +140,20 @@ abstract class PhragmentController extends PhabricatorController {
       $actions->addAction(
         id(new PhabricatorActionView())
           ->setName(pht('View Child Fragments'))
-          ->setHref($this->getApplicationURI("browse/".$fragment->getPath()))
+          ->setHref($this->getApplicationURI('browse/'.$fragment->getPath()))
           ->setIcon('fa-search-plus'));
     } else {
       $actions->addAction(
         id(new PhabricatorActionView())
           ->setName(pht('View History'))
-          ->setHref($this->getApplicationURI("history/".$fragment->getPath()))
+          ->setHref($this->getApplicationURI('history/'.$fragment->getPath()))
           ->setIcon('fa-list'));
     }
     $actions->addAction(
       id(new PhabricatorActionView())
         ->setName(pht('Create Snapshot'))
         ->setHref($this->getApplicationURI(
-          "snapshot/create/".$fragment->getPath()))
+          'snapshot/create/'.$fragment->getPath()))
         ->setDisabled(!$can_edit)
         ->setWorkflow(!$can_edit)
         ->setIcon('fa-files-o'));
@@ -161,7 +161,7 @@ abstract class PhragmentController extends PhabricatorController {
       id(new PhabricatorActionView())
         ->setName(pht('Promote Snapshot to Here'))
         ->setHref($this->getApplicationURI(
-          "snapshot/promote/latest/".$fragment->getPath()))
+          'snapshot/promote/latest/'.$fragment->getPath()))
         ->setWorkflow(true)
         ->setDisabled(!$can_edit)
         ->setIcon('fa-arrow-circle-up'));
@@ -202,7 +202,7 @@ abstract class PhragmentController extends PhabricatorController {
   }
 
   function renderConfigurationWarningIfRequired() {
-    $alt = PhabricatorEnv::getEnvConfig("security.alternate-file-domain");
+    $alt = PhabricatorEnv::getEnvConfig('security.alternate-file-domain');
     if ($alt === null) {
       return id(new AphrontErrorView())
         ->setTitle(pht('security.alternate-file-domain must be configured!'))
@@ -210,7 +210,7 @@ abstract class PhragmentController extends PhabricatorController {
         ->appendChild(phutil_tag('p', array(), pht(
           'Because Phragment generates files (such as ZIP archives and '.
           'patches) as they are requested, it requires that you configure '.
-          'the `security.alterate-file-domain` option.  This option on it\'s '.
+          'the `security.alterate-file-domain` option. This option on it\'s '.
           'own will also provide additional security when serving files '.
           'across Phabricator.')));
     }
@@ -219,14 +219,14 @@ abstract class PhragmentController extends PhabricatorController {
 
   /**
    * We use this to disable the download links if the alternate domain is
-   * not configured correctly.  Although the download links will mostly work
+   * not configured correctly. Although the download links will mostly work
    * for logged in users without an alternate domain, the behaviour is
    * reasonably non-consistent and will deny public users, even if policies
    * are configured otherwise (because the Files app does not support showing
    * the info page to viewers who are not logged in).
    */
   function isCorrectlyConfigured() {
-    $alt = PhabricatorEnv::getEnvConfig("security.alternate-file-domain");
+    $alt = PhabricatorEnv::getEnvConfig('security.alternate-file-domain');
     return $alt !== null;
   }
 

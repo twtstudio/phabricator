@@ -3,8 +3,12 @@
 final class HeraldTranscriptSearchEngine
   extends PhabricatorApplicationSearchEngine {
 
+  public function getResultTypeDescription() {
+    return pht('Herald Transcripts');
+  }
+
   public function getApplicationClassName() {
-    return 'PhabricatorApplicationHerald';
+    return 'PhabricatorHeraldApplication';
   }
 
   public function buildSavedQueryFromRequest(AphrontRequest $request) {
@@ -71,15 +75,12 @@ final class HeraldTranscriptSearchEngine
   }
 
   public function getBuiltinQueryNames() {
-    $names = array();
-
-    $names['all'] = pht('All');
-
-    return $names;
+    return array(
+      'all' => pht('All'),
+    );
   }
 
   public function buildSavedQueryFromBuiltin($query_key) {
-
     $query = $this->newSavedQuery();
     $query->setQueryKey($query_key);
 
@@ -108,7 +109,6 @@ final class HeraldTranscriptSearchEngine
     $viewer = $this->requireViewer();
 
     $list = new PHUIObjectItemListView();
-    $list->setCards(true);
     foreach ($transcripts as $xscript) {
       $view_href = phutil_tag(
         'a',
