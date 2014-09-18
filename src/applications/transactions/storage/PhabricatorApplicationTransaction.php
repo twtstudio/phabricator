@@ -438,6 +438,27 @@ abstract class PhabricatorApplicationTransaction
         if ($field) {
           return $field->shouldHideInApplicationTransactions($this);
         }
+      case PhabricatorTransactions::TYPE_EDGE:
+        $edge_type = $this->getMetadataValue('edge:type');
+        switch ($edge_type) {
+          case PhabricatorObjectMentionsObject::EDGECONST:
+            return true;
+            break;
+          case PhabricatorObjectMentionedByObject::EDGECONST:
+            $new = ipull($this->getNewValue(), 'dst');
+            $old = ipull($this->getOldValue(), 'dst');
+            $add = array_diff($new, $old);
+            $add_value = reset($add);
+            $add_handle = $this->getHandle($add_value);
+            if ($add_handle->getPolicyFiltered()) {
+              return true;
+            }
+            return false;
+            break;
+          default:
+            break;
+        }
+        break;
     }
 
     return false;
@@ -456,6 +477,17 @@ abstract class PhabricatorApplicationTransaction
             return false;
         }
         return true;
+     case PhabricatorTransactions::TYPE_EDGE:
+        $edge_type = $this->getMetadataValue('edge:type');
+        switch ($edge_type) {
+          case PhabricatorObjectMentionsObject::EDGECONST:
+          case PhabricatorObjectMentionedByObject::EDGECONST:
+            return true;
+            break;
+          default:
+            break;
+        }
+        break;
     }
 
     return $this->shouldHide();
@@ -475,6 +507,17 @@ abstract class PhabricatorApplicationTransaction
             return false;
         }
         return true;
+     case PhabricatorTransactions::TYPE_EDGE:
+        $edge_type = $this->getMetadataValue('edge:type');
+        switch ($edge_type) {
+          case PhabricatorObjectMentionsObject::EDGECONST:
+          case PhabricatorObjectMentionedByObject::EDGECONST:
+            return true;
+            break;
+          default:
+            break;
+        }
+        break;
     }
 
     return $this->shouldHide();
@@ -788,6 +831,31 @@ abstract class PhabricatorApplicationTransaction
     return $this->getTitle();
   }
 
+  public function getMarkupFieldsForFeed(PhabricatorFeedStory $story) {
+    $fields = array();
+
+    switch ($this->getTransactionType()) {
+      case PhabricatorTransactions::TYPE_COMMENT:
+        $text = $this->getComment()->getContent();
+        if (strlen($text)) {
+          $fields[] = 'comment/'.$this->getID();
+        }
+        break;
+    }
+
+    return $fields;
+  }
+
+  public function getMarkupTextForFeed(PhabricatorFeedStory $story, $field) {
+    switch ($this->getTransactionType()) {
+      case PhabricatorTransactions::TYPE_COMMENT:
+        $text = $this->getComment()->getContent();
+        return PhabricatorMarkupEngine::summarize($text);
+    }
+
+    return null;
+  }
+
   public function getBodyForFeed(PhabricatorFeedStory $story) {
     $old = $this->getOldValue();
     $new = $this->getNewValue();
@@ -797,10 +865,12 @@ abstract class PhabricatorApplicationTransaction
     switch ($this->getTransactionType()) {
       case PhabricatorTransactions::TYPE_COMMENT:
         $text = $this->getComment()->getContent();
-        $body = phutil_escape_html_newlines(
-          phutil_utf8_shorten($text, 128));
+        if (strlen($text)) {
+          $body = $story->getMarkupFieldOutput('comment/'.$this->getID());
+        }
         break;
     }
+
     return $body;
   }
 

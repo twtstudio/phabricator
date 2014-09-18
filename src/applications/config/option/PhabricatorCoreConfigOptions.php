@@ -24,6 +24,10 @@ final class PhabricatorCoreConfigOptions
 
     $path = getenv('PATH');
 
+    $proto_doc_href = PhabricatorEnv::getDoclink(
+      'User Guide: Prototype Applications');
+    $proto_doc_name = pht('User Guide: Prototype Applications');
+
     return array(
       $this->newOption('phabricator.base-uri', 'string', null)
         ->setLocked(true)
@@ -86,25 +90,33 @@ final class PhabricatorCoreConfigOptions
             'Phabricator instances are running on both domains, this will '.
             'create a collision preventing you from logging in.'))
         ->addExample('dev', pht('Prefix cookie with "dev"')),
-      $this->newOption('phabricator.show-beta-applications', 'bool', false)
+      $this->newOption('phabricator.show-prototypes', 'bool', false)
         ->setBoolOptions(
           array(
-            pht('Install Beta Applications'),
-            pht('Uninstall Beta Applications')
+            pht('Enable Prototypes'),
+            pht('Disable Prototypes')
           ))
         ->setSummary(
           pht(
             'Install applications which are still under development.'))
         ->setDescription(
           pht(
-            "Phabricator includes 'Beta' applications which are in an early ".
-            "stage of development. They range from very rough prototypes to ".
-            "relatively complete (but unpolished) applications.\n\n".
-            "By default, Beta applications are not installed. You can enable ".
-            "this option to install them if you're interested in previewing ".
-            "upcoming features.\n\n".
-            "After enabling Beta applications, you can selectively uninstall ".
-            "them (like normal applications).")),
+            "IMPORTANT: The upstream does not provide support for prototype ".
+            "applications.".
+            "\n\n".
+            "Phabricator includes prototype applications which are in an ".
+            "**early stage of development**. By default, prototype ".
+            "applications are not installed, because are are often not yet ".
+            "developed enough to be generally usable. You can enable ".
+            "this option to install them if you're developing Phabricator ".
+            "or are interested in previewing upcoming features.".
+            "\n\n".
+            "To learn more about prototypes, see [[ %s | %s ]].".
+            "\n\n".
+            "After enabling prototypes, you can selectively uninstall them ".
+            "(like normal applications).",
+            $proto_doc_href,
+            $proto_doc_name)),
       $this->newOption('phabricator.serious-business', 'bool', false)
         ->setBoolOptions(
           array(
@@ -120,7 +132,17 @@ final class PhabricatorCoreConfigOptions
             'Maniphest. If you\'d prefer more traditional UI strings like '.
             '"Add Comment", you can set this flag to disable most of the '.
             'extra flavor.')),
-       $this->newOption('environment.append-paths', 'list<string>', $paths)
+      $this->newOption('remarkup.ignored-object-names', 'string', '/^(Q|V)\d$/')
+        ->setSummary(
+          pht('Text values that match this regex and are also object names '.
+          'will not be linked.'))
+        ->setDescription(
+          pht(
+            'By default, Phabricator links object names in Remarkup fields '.
+            'to the corresponding object. This regex can be used to modify '.
+            'this behavior; object names that match this regex will not be '.
+            'linked.')),
+      $this->newOption('environment.append-paths', 'list<string>', $paths)
         ->setSummary(
           pht('These paths get appended to your \$PATH envrionment variable.'))
         ->setDescription(

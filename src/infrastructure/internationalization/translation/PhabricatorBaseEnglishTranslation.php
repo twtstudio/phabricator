@@ -9,6 +9,10 @@ abstract class PhabricatorBaseEnglishTranslation
 
   public function getTranslations() {
     return array(
+      'No daemon(s) with id(s) "%s" exist!' => array(
+        'No daemon with id %s exists!',
+        'No daemons with ids %s exist!',
+      ),
       'These %d configuration value(s) are related:' => array(
         'This configuration value is related:',
         'These configuration values are related:',
@@ -334,6 +338,20 @@ abstract class PhabricatorBaseEnglishTranslation
         array(
           '%s removed a project from %3$s: %4$s',
           '%s removed projects from %3$s: %4$s',
+        ),
+      ),
+
+      '%s merged %d task(s): %s.' => array(
+        array(
+          '%s merged a task: %3$s.',
+          '%s merged tasks: %3$s.',
+        ),
+      ),
+
+      '%s merged %d task(s) %s into %s.' => array(
+        array(
+          '%s merged %3$s into %4$s.',
+          '%s merged tasks %3$s into %4$s.',
         ),
       ),
 
@@ -672,6 +690,11 @@ abstract class PhabricatorBaseEnglishTranslation
       'The current Phabricator configuration has these %d value(s):' => array(
         'The current Phabricator configuration has this value:',
         'The current Phabricator configuration has these values:',
+      ),
+
+      'The current MySQL configuration has these %d value(s):' => array(
+        'The current MySQL configuration has this value:',
+        'The current MySQL configuration has these values:',
       ),
 
       'To update these %d value(s), run these command(s) from the command line:'

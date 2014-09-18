@@ -6,10 +6,12 @@ final class ManiphestTask extends ManiphestDAO
     PhabricatorPolicyInterface,
     PhabricatorTokenReceiverInterface,
     PhabricatorFlaggableInterface,
+    PhabricatorMentionableInterface,
     PhrequentTrackableInterface,
     PhabricatorCustomFieldInterface,
     PhabricatorDestructibleInterface,
-    PhabricatorApplicationTransactionInterface {
+    PhabricatorApplicationTransactionInterface,
+    PhabricatorProjectInterface {
 
   const MARKUP_FIELD_DESCRIPTION = 'markup:desc';
 

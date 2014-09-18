@@ -102,7 +102,7 @@ abstract class PhabricatorTestCase extends ArcanistPhutilTestCase {
       'phabricator.uninstalled-applications',
       array());
     $this->env->overrideEnvConfig(
-      'phabricator.show-beta-applications',
+      'phabricator.show-prototypes',
       true);
 
     // Reset application settings to defaults, particularly policies.
@@ -110,8 +110,18 @@ abstract class PhabricatorTestCase extends ArcanistPhutilTestCase {
       'phabricator.application-settings',
       array());
 
+    // We can't stub this service right now, and it's not generally useful
+    // to publish notifications about test execution.
+    $this->env->overrideEnvConfig(
+      'notification.enabled',
+      false);
+
     // TODO: Remove this when we remove "releeph.installed".
     $this->env->overrideEnvConfig('releeph.installed', true);
+
+    $this->env->overrideEnvConfig(
+      'phabricator.base-uri',
+      'http://phabricator.example.com');
   }
 
   protected function didRunTests() {

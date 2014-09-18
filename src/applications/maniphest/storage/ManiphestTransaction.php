@@ -13,12 +13,26 @@ final class ManiphestTransaction
   const TYPE_EDGE = 'edge';
   const TYPE_SUBPRIORITY = 'subpriority';
   const TYPE_PROJECT_COLUMN = 'projectcolumn';
+  const TYPE_MERGED_INTO = 'mergedinto';
+  const TYPE_MERGED_FROM = 'mergedfrom';
 
   const TYPE_UNBLOCK = 'unblock';
 
   // NOTE: this type is deprecated. Keep it around for legacy installs
   // so any transactions render correctly.
   const TYPE_ATTACH = 'attach';
+
+
+  const MAILTAG_STATUS = 'maniphest-status';
+  const MAILTAG_OWNER = 'maniphest-owner';
+  const MAILTAG_PRIORITY = 'maniphest-priority';
+  const MAILTAG_CC = 'maniphest-cc';
+  const MAILTAG_PROJECTS = 'maniphest-projects';
+  const MAILTAG_COMMENT = 'maniphest-comment';
+  const MAILTAG_COLUMN = 'maniphest-column';
+  const MAILTAG_UNBLOCK = 'maniphest-unblock';
+  const MAILTAG_OTHER = 'maniphest-other';
+
 
   public function getApplicationName() {
     return 'maniphest';
@@ -84,6 +98,12 @@ final class ManiphestTransaction
         $phids[] = $new['projectPHID'];
         $phids[] = head($new['columnPHIDs']);
         break;
+      case self::TYPE_MERGED_INTO:
+        $phids[] = $new;
+        break;
+      case self::TYPE_MERGED_FROM:
+        $phids = array_merge($phids, $new);
+        break;
       case self::TYPE_EDGE:
         $phids = array_mergev(
           array(
@@ -125,6 +145,16 @@ final class ManiphestTransaction
         break;
       case self::TYPE_SUBPRIORITY:
         return true;
+      case self::TYPE_PROJECT_COLUMN:
+        $old_cols = idx($this->getOldValue(), 'columnPHIDs');
+        $new_cols = idx($this->getNewValue(), 'columnPHIDs');
+
+        $old_cols = array_values($old_cols);
+        $new_cols = array_values($new_cols);
+        sort($old_cols);
+        sort($new_cols);
+
+        return ($old_cols === $new_cols);
     }
 
     return parent::shouldHide();
@@ -268,6 +298,10 @@ final class ManiphestTransaction
           return pht('Blocker');
         }
 
+      case self::TYPE_MERGED_INTO:
+      case self::TYPE_MERGED_FROM:
+        return pht('Merged');
+
     }
 
     return parent::getActionName();
@@ -311,6 +345,10 @@ final class ManiphestTransaction
 
       case self::TYPE_PROJECT_COLUMN:
         return 'fa-columns';
+
+      case self::TYPE_MERGED_INTO:
+      case self::TYPE_MERGED_FROM:
+        return 'fa-compress';
 
       case self::TYPE_PRIORITY:
         if ($old == ManiphestTaskPriority::getDefaultPriority()) {
@@ -549,7 +587,22 @@ final class ManiphestTransaction
           $this->renderHandleLink($author_phid),
           $this->renderHandleLink($column_phid),
           $this->renderHandleLink($project_phid));
-       break;
+        break;
+
+      case self::TYPE_MERGED_INTO:
+        return pht(
+          '%s merged this task into %s.',
+          $this->renderHandleLink($author_phid),
+          $this->renderHandleLink($new));
+        break;
+
+      case self::TYPE_MERGED_FROM:
+        return pht(
+          '%s merged %d task(s): %s.',
+          $this->renderHandleLink($author_phid),
+          count($new),
+          $this->renderHandleList($new));
+        break;
 
 
     }
@@ -622,14 +675,40 @@ final class ManiphestTransaction
         }
 
       case self::TYPE_UNBLOCK:
+        $blocker_phid = key($new);
+        $old_status = head($old);
+        $new_status = head($new);
 
-        // TODO: We should probably not show these in feed; they're highly
-        // redundant. For now, just use the normal titles. Right now, we can't
-        // publish something to noficiations without also publishing it to feed.
-        // Fix that, then stop these from rendering in feed only.
+        $old_closed = ManiphestTaskStatus::isClosedStatus($old_status);
+        $new_closed = ManiphestTaskStatus::isClosedStatus($new_status);
 
-        break;
+        $old_name = ManiphestTaskStatus::getTaskStatusName($old_status);
+        $new_name = ManiphestTaskStatus::getTaskStatusName($new_status);
 
+        if ($old_closed && !$new_closed) {
+          return pht(
+            '%s reopened %s, a task blocking %s, as "%s".',
+            $this->renderHandleLink($author_phid),
+            $this->renderHandleLink($blocker_phid),
+            $this->renderHandleLink($object_phid),
+            $new_name);
+        } else if (!$old_closed && $new_closed) {
+          return pht(
+            '%s closed %s, a task blocking %s, as "%s".',
+            $this->renderHandleLink($author_phid),
+            $this->renderHandleLink($blocker_phid),
+            $this->renderHandleLink($object_phid),
+            $new_name);
+        } else {
+          return pht(
+            '%s changed the status of %s, a task blocking %s, '.
+            'from "%s" to "%s".',
+            $this->renderHandleLink($author_phid),
+            $this->renderHandleLink($blocker_phid),
+            $this->renderHandleLink($object_phid),
+            $old_name,
+            $new_name);
+        }
 
       case self::TYPE_OWNER:
         if ($author_phid == $new) {
@@ -767,7 +846,22 @@ final class ManiphestTransaction
           $this->renderHandleLink($object_phid),
           $this->renderHandleLink($column_phid),
           $this->renderHandleLink($project_phid));
-       break;
+
+      case self::TYPE_MERGED_INTO:
+        return pht(
+          '%s merged task %s into %s.',
+          $this->renderHandleLink($author_phid),
+          $this->renderHandleLink($object_phid),
+          $this->renderHandleLink($new));
+
+      case self::TYPE_MERGED_FROM:
+        return pht(
+          '%s merged %d task(s) %s into %s.',
+          $this->renderHandleLink($author_phid),
+          count($new),
+          $this->renderHandleList($new),
+          $this->renderHandleLink($object_phid));
+
     }
 
     return parent::getTitleForFeed($story);
@@ -792,32 +886,38 @@ final class ManiphestTransaction
     $tags = array();
     switch ($this->getTransactionType()) {
       case self::TYPE_STATUS:
-        $tags[] = MetaMTANotificationType::TYPE_MANIPHEST_STATUS;
+        $tags[] = self::MAILTAG_STATUS;
         break;
       case self::TYPE_OWNER:
-        $tags[] = MetaMTANotificationType::TYPE_MANIPHEST_OWNER;
+        $tags[] = self::MAILTAG_OWNER;
         break;
       case self::TYPE_CCS:
-        $tags[] = MetaMTANotificationType::TYPE_MANIPHEST_CC;
+        $tags[] = self::MAILTAG_CC;
         break;
       case PhabricatorTransactions::TYPE_EDGE:
         switch ($this->getMetadataValue('edge:type')) {
           case PhabricatorProjectObjectHasProjectEdgeType::EDGECONST:
-            $tags[] = MetaMTANotificationType::TYPE_MANIPHEST_PROJECTS;
+            $tags[] = self::MAILTAG_PROJECTS;
             break;
           default:
-            $tags[] = MetaMTANotificationType::TYPE_MANIPHEST_OTHER;
+            $tags[] = self::MAILTAG_OTHER;
             break;
         }
         break;
       case self::TYPE_PRIORITY:
-        $tags[] = MetaMTANotificationType::TYPE_MANIPHEST_PRIORITY;
+        $tags[] = self::MAILTAG_PRIORITY;
+        break;
+      case self::TYPE_UNBLOCK:
+        $tags[] = self::MAILTAG_UNBLOCK;
+        break;
+      case self::TYPE_PROJECT_COLUMN:
+        $tags[] = self::MAILTAG_COLUMN;
         break;
       case PhabricatorTransactions::TYPE_COMMENT:
-        $tags[] = MetaMTANotificationType::TYPE_MANIPHEST_COMMENT;
+        $tags[] = self::MAILTAG_COMMENT;
         break;
       default:
-        $tags[] = MetaMTANotificationType::TYPE_MANIPHEST_OTHER;
+        $tags[] = self::MAILTAG_OTHER;
         break;
     }
     return $tags;

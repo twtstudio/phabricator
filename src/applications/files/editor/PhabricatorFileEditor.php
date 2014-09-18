@@ -3,6 +3,14 @@
 final class PhabricatorFileEditor
   extends PhabricatorApplicationTransactionEditor {
 
+  public function getEditorApplicationClass() {
+    return 'PhabricatorFilesApplication';
+  }
+
+  public function getEditorObjectsDescription() {
+    return pht('Files');
+  }
+
   public function getTransactionTypes() {
     $types = parent::getTransactionTypes();
 
@@ -14,15 +22,11 @@ final class PhabricatorFileEditor
 
   protected function getCustomTransactionOldValue(
     PhabricatorLiskDAO $object,
-    PhabricatorApplicationTransaction $xaction) {
-
-  }
+    PhabricatorApplicationTransaction $xaction) {}
 
   protected function getCustomTransactionNewValue(
     PhabricatorLiskDAO $object,
-    PhabricatorApplicationTransaction $xaction) {
-
-  }
+    PhabricatorApplicationTransaction $xaction) {}
 
   protected function applyCustomInternalTransaction(
     PhabricatorLiskDAO $object,
@@ -37,8 +41,7 @@ final class PhabricatorFileEditor
 
   protected function applyCustomExternalTransaction(
     PhabricatorLiskDAO $object,
-    PhabricatorApplicationTransaction $xaction) {
-  }
+    PhabricatorApplicationTransaction $xaction) {}
 
   protected function shouldSendMail(
     PhabricatorLiskDAO $object,
