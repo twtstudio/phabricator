@@ -94,7 +94,7 @@ final class PhabricatorCoreConfigOptions
         ->setBoolOptions(
           array(
             pht('Enable Prototypes'),
-            pht('Disable Prototypes')
+            pht('Disable Prototypes'),
           ))
         ->setSummary(
           pht(
@@ -106,7 +106,7 @@ final class PhabricatorCoreConfigOptions
             "\n\n".
             "Phabricator includes prototype applications which are in an ".
             "**early stage of development**. By default, prototype ".
-            "applications are not installed, because are are often not yet ".
+            "applications are not installed, because they are often not yet ".
             "developed enough to be generally usable. You can enable ".
             "this option to install them if you're developing Phabricator ".
             "or are interested in previewing upcoming features.".
